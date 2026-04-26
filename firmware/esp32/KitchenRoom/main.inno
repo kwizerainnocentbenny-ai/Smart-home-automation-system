@@ -1,0 +1,665 @@
+/*
+ * Smart Home - Kitchen ESP32 Node
+ * MANUAL CONTROL ONLY - No automatic actions
+ * 
+ * Controls (Manual only via web):
+ * - Oven (GPIO2) - Relay
+ * - Lights (GPIO4) - Relay
+ * - Ventilation Fan (GPIO5) - Relay
+ * - Dishwasher (GPIO18) - Relay
+ * - Windows (GPIO19) - Servo (Controllable)
+ * 
+ * Sensors (Reporting only - web handles alerts):
+ * - MQ-3 Alcohol Sensor (GPIO32) - Alcohol vapor detection ONLY
+ *   NOTE: This is NOT a gas sensor. It reads alcohol concentration only.
+ *         Values sent to web: raw|percentage%|STATUS|DETAILED|ALCOHOL_LEVEL
+ * - Fire/Flame Sensor (GPIO33) - Fire detection with REAL-TIME data
+ * 
+ * WiFi: KWIZERA / Kinno@123
+ * Backend: http://192.168.137.1:8000/api
+ * Room ID: 2 (Kitchen)
+ * 
+ * Device IDs:
+ * - Oven: 11 (Controllable)
+ * - Lights: 12 (Controllable)
+ * - Ventilation: 13 (Controllable)
+ * - Dishwasher: 14 (Controllable)
+ * - Alcohol Sensor (MQ-3): 15 (Sensor - reports only)
+ * - Fire Sensor: 16 (Sensor - reports only) - REAL-TIME DATA
+ * - Windows: 17 (Controllable)
+ */
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <ESP32Servo.h>
+
+// ==================== WiFi Configuration ====================
+const char* ssid = "KWIZERA";
+const char* password = "Kinno@123";
+const char* serverUrl = "http://192.168.137.1:8000/api";
+const int ROOM_ID = 2;  // Kitchen
+
+// ==================== Pin Definitions ====================
+#define RELAY_OVEN_PIN 2
+#define RELAY_LIGHTS_PIN 4
+#define RELAY_VENTILATION_PIN 5
+#define RELAY_DISHWASHER_PIN 18
+#define SERVO_WINDOW_PIN 19
+#define MQ3_PIN 32        // MQ-3 Alcohol Sensor (alcohol vapors ONLY — not a gas sensor)
+#define FIRE_SENSOR_PIN 33
+
+// ==================== Device IDs ====================
+const int OVEN_ID = 11;
+const int LIGHTS_ID = 12;
+const int VENTILATION_ID = 13;
+const int DISHWASHER_ID = 14;
+const int ALCOHOL_ID = 15;  // MQ-3 Alcohol Sensor — NOT a gas sensor
+const int FIRE_SENSOR_ID = 16;
+const int WINDOW_ID = 17;
+
+// ==================== MQ-3 ALCOHOL THRESHOLDS ====================
+// MQ-3 detects alcohol vapors (ethanol) ONLY.
+// We do NOT report gas, LPG, CO, benzene, or methane here.
+// Thresholds tuned for alcohol vapor concentration (ESP32 12-bit ADC: 0-4095):
+const int MQ3_VERY_HIGH_THRESHOLD = 4000;  // >4000 = DANGEROUS alcohol level
+const int MQ3_HIGH_THRESHOLD      = 3000;  // 3000-4000 = HIGH alcohol detected
+const int MQ3_MODERATE_THRESHOLD  = 1000;  // 1000-3000 = MODERATE alcohol trace
+const int MQ3_LOW_THRESHOLD       = 500;   //  500-1000 = LOW alcohol trace
+
+// ==================== FIRE SENSOR THRESHOLDS ====================
+const int FIRE_CRITICAL_THRESHOLD = 500;    // Below 500 = FIRE DETECTED (CRITICAL)
+const int FIRE_WARNING_THRESHOLD = 800;     // 500-800 = Warning (possible fire)
+const int FIRE_NORMAL_THRESHOLD = 1000;     // Above 1000 = Normal (no fire)
+
+// ==================== TIMING ====================
+const long POLL_INTERVAL = 200;               // 200ms for responsive control
+const long SENSOR_INTERVAL = 1000;            // 1 second for sensor updates
+const long CRITICAL_SENSOR_INTERVAL = 200;    // 200ms when fire detected (VERY FAST)
+const long WIFI_CHECK_INTERVAL = 1000;        // Check WiFi every second
+const long WIFI_RECONNECT_DELAY = 2000;       // Wait 2 seconds between reconnect attempts
+const int WIFI_MAX_ATTEMPTS = 30;             // Max connection attempts (30 * 500ms = 15 seconds)
+
+// ==================== Relay Logic ====================
+const bool RELAY_ACTIVE_LOW = false;   // false = HIGH turns relay ON
+
+// ==================== Global Objects ====================
+Servo windowServo;
+WiFiClient wifiClient;
+HTTPClient http;
+
+// Device states
+bool ovenState = false;
+bool lightsState = false;
+bool ventilationState = false;
+bool dishwasherState = false;
+bool windowState = false;  // false = CLOSED, true = OPEN
+
+// Current raw sensor values
+int mq3Raw = 0;
+int fireValue = 0;
+
+// Fire detection state tracking
+bool fireDetected = false;
+bool fireWarning = false;
+int fireStableCount = 0;
+const int FIRE_STABLE_THRESHOLD = 3;  // Need 3 consecutive readings to confirm
+
+// Timing variables
+unsigned long lastPoll = 0;
+unsigned long lastSensorRead = 0;
+unsigned long lastWiFiCheck = 0;
+unsigned long lastWiFiReconnectAttempt = 0;
+bool wifiReconnecting = false;
+
+// Sensor failure tracking
+int fireReadFailures = 0;
+int mq3ReadFailures = 0;
+const int MAX_READ_FAILURES = 5;
+
+// ==================== Function Prototypes ====================
+void printHeader();
+void initPins();
+bool connectToWiFi();
+void checkWiFiConnection();
+void pollDeviceStates();
+void parseDevices(String payload);
+void controlDevice(int deviceId, String command);
+void setRelay(int pin, bool state);
+void setWindow(bool state);
+void readAndSendSensors();
+int calculateAlcoholPercentage(int rawValue);
+String getAlcoholStatus(int rawValue);
+String getAlcoholDetailedStatus(int rawValue);
+String getAlcoholLevel(int rawValue);        // replaces getMQ3GasType — alcohol only
+String getFireStatus(int value);
+String getFireDetailedStatus(int value);
+void sendSensorData(int sensorId, String value);
+void printSystemInfo();
+
+// ==================== Setup ====================
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  printHeader();
+  initPins();
+  
+  WiFi.setSleep(false);  // Disable WiFi sleep for fastest response
+  
+  // Initial WiFi connection
+  connectToWiFi();
+  
+  // Configure HTTP client
+  http.setTimeout(500);
+  http.setReuse(true);
+  
+  Serial.println("\n✅ Setup complete! Manual control only - Web handles alerts");
+  Serial.println("🔥 FIRE SENSOR: Real-time data with immediate alerts");
+  Serial.println("🍺 MQ-3 SENSOR: Alcohol vapor detection ONLY (not a gas sensor)\n");
+  delay(100);
+}
+
+// ==================== Main Loop ====================
+void loop() {
+  unsigned long now = millis();
+  
+  // Check WiFi connection regularly
+  checkWiFiConnection();
+  
+  // Only proceed if WiFi is connected
+  if (WiFi.status() == WL_CONNECTED) {
+    // Poll for web commands (manual control only)
+    if (now - lastPoll >= POLL_INTERVAL) {
+      pollDeviceStates();
+      lastPoll = now;
+    }
+    
+    // Dynamic sensor interval - faster when fire detected
+    long currentSensorInterval = fireDetected ? CRITICAL_SENSOR_INTERVAL : SENSOR_INTERVAL;
+    
+    // Send sensor data (web handles alerts)
+    if (now - lastSensorRead >= currentSensorInterval) {
+      readAndSendSensors();
+      lastSensorRead = now;
+    }
+  }
+  
+  delay(5);  // Small delay for stability
+}
+
+// ==================== Print Header ====================
+void printHeader() {
+  Serial.println("\n\n╔══════════════════════════════════════════╗");
+  Serial.println("║     SMART HOME - KITCHEN NODE v3.2     ║");
+  Serial.println("║          MANUAL CONTROL ONLY           ║");
+  Serial.println("╠══════════════════════════════════════════╣");
+  Serial.println("║  Oven: GPIO2 | Lights: GPIO4            ║");
+  Serial.println("║  Ventilation: GPIO5 | Dishwasher: GPIO18║");
+  Serial.println("║  Windows: GPIO19 (SERVO - Controllable) ║");
+  Serial.println("║  MQ-3 ALCOHOL ONLY: GPIO32              ║");
+  Serial.println("║  Fire/Flame Sensor: GPIO33              ║");
+  Serial.println("║  POLLING: 200ms | SENSOR: 1s            ║");
+  Serial.println("║  FIRE: 200ms when detected              ║");
+  Serial.println("║  WEB HANDLES ALL ALERTS                 ║");
+  Serial.println("╚══════════════════════════════════════════╝");
+  Serial.println();
+}
+
+// ==================== Initialize Pins ====================
+void initPins() {
+  Serial.println("\n📌 Initializing kitchen pins...");
+  
+  pinMode(RELAY_OVEN_PIN, OUTPUT);
+  pinMode(RELAY_LIGHTS_PIN, OUTPUT);
+  pinMode(RELAY_VENTILATION_PIN, OUTPUT);
+  pinMode(RELAY_DISHWASHER_PIN, OUTPUT);
+  
+  // Start with all relays OFF
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(RELAY_OVEN_PIN, HIGH);
+    digitalWrite(RELAY_LIGHTS_PIN, HIGH);
+    digitalWrite(RELAY_VENTILATION_PIN, HIGH);
+    digitalWrite(RELAY_DISHWASHER_PIN, HIGH);
+    Serial.println("  ✓ Relays initialized (OFF) - Active LOW");
+  } else {
+    digitalWrite(RELAY_OVEN_PIN, LOW);
+    digitalWrite(RELAY_LIGHTS_PIN, LOW);
+    digitalWrite(RELAY_VENTILATION_PIN, LOW);
+    digitalWrite(RELAY_DISHWASHER_PIN, LOW);
+    Serial.println("  ✓ Relays initialized (OFF) - Active HIGH");
+  }
+  
+  // Initialize window servo
+  windowServo.attach(SERVO_WINDOW_PIN);
+  windowServo.write(0);
+  Serial.println("  ✓ Window servo initialized (CLOSED) - Manual control only");
+  
+  // Initialize sensor pins
+  pinMode(MQ3_PIN, INPUT);
+  pinMode(FIRE_SENSOR_PIN, INPUT);
+  
+  Serial.println("  ✓ MQ-3 alcohol sensor and Fire sensor initialized");
+  Serial.println("  🔥 Fire thresholds: <500=CRITICAL, 500-800=WARNING, >800=NORMAL");
+  Serial.println("  🍺 MQ-3 alcohol thresholds (alcohol only):");
+  Serial.println("     <500=NO ALCOHOL  500-1000=TRACE  1000-3000=MODERATE");
+  Serial.println("     3000-4000=HIGH   >4000=DANGEROUS");
+  Serial.println();
+}
+
+// ==================== Connect to WiFi ====================
+bool connectToWiFi() {
+  Serial.print("\n📡 Connecting to WiFi: ");
+  Serial.println(ssid);
+  
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  
+  // Disconnect first to ensure clean connection
+  WiFi.disconnect();
+  delay(100);
+  
+  WiFi.begin(ssid, password);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < WIFI_MAX_ATTEMPTS) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi Connected!");
+    Serial.printf("   IP Address: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("   MAC Address: %s\n", WiFi.macAddress().c_str());
+    Serial.printf("   RSSI: %d dBm\n", WiFi.RSSI());
+    wifiReconnecting = false;
+    return true;
+  } else {
+    Serial.println("\n❌ WiFi Connection Failed!");
+    return false;
+  }
+}
+
+// ==================== Check WiFi Connection ====================
+void checkWiFiConnection() {
+  unsigned long now = millis();
+  
+  // Check WiFi status every second
+  if (now - lastWiFiCheck >= WIFI_CHECK_INTERVAL) {
+    lastWiFiCheck = now;
+    
+    // If WiFi is disconnected and we're not already trying to reconnect
+    if (WiFi.status() != WL_CONNECTED && !wifiReconnecting) {
+      Serial.println("\n❌ WiFi disconnected! Attempting to reconnect...");
+      wifiReconnecting = true;
+      lastWiFiReconnectAttempt = now;
+      
+      // Disconnect and restart WiFi
+      WiFi.disconnect();
+      delay(100);
+      WiFi.mode(WIFI_STA);
+      WiFi.setSleep(false);
+      WiFi.begin(ssid, password);
+    }
+    
+    // If we're in reconnection mode
+    if (wifiReconnecting) {
+      // Check if we've connected
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\n✅ WiFi Reconnected!");
+        Serial.printf("   IP Address: %s\n", WiFi.localIP().toString().c_str());
+        wifiReconnecting = false;
+      } 
+      // Check if it's time to retry (every 2 seconds)
+      else if (now - lastWiFiReconnectAttempt >= WIFI_RECONNECT_DELAY) {
+        Serial.print(".");
+        WiFi.reconnect();
+        lastWiFiReconnectAttempt = now;
+      }
+    }
+  }
+}
+
+// ==================== Poll Device States ====================
+void pollDeviceStates() {
+  // Double-check connection before attempting HTTP request
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+  
+  String url = String(serverUrl) + "/devices/room/" + String(ROOM_ID);
+  
+  http.begin(wifiClient, url);
+  http.setTimeout(500);
+  
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    parseDevices(payload);
+  }
+  
+  http.end();
+}
+
+// ==================== Parse Devices JSON ====================
+void parseDevices(String payload) {
+  StaticJsonDocument<2048> doc;
+  DeserializationError error = deserializeJson(doc, payload);
+  
+  if (error) {
+    return;
+  }
+  
+  JsonArray devices = doc.as<JsonArray>();
+  
+  for (JsonVariant device : devices) {
+    int id = device["id"];
+    const char* state = device["current_state"];
+    bool isSensor = device["is_sensor"];
+    
+    // Control only non-sensor devices (manual web control)
+    if (!isSensor && state != nullptr) {
+      controlDevice(id, String(state));
+    }
+  }
+}
+
+// ==================== Control Device ====================
+void controlDevice(int deviceId, String command) {
+  bool newState = (command == "ON");
+  
+  switch(deviceId) {
+    case OVEN_ID:
+      if (ovenState != newState) {
+        setRelay(RELAY_OVEN_PIN, newState);
+        ovenState = newState;
+        Serial.printf("🔥 Oven: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case LIGHTS_ID:
+      if (lightsState != newState) {
+        setRelay(RELAY_LIGHTS_PIN, newState);
+        lightsState = newState;
+        Serial.printf("💡 Kitchen Lights: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case VENTILATION_ID:
+      if (ventilationState != newState) {
+        setRelay(RELAY_VENTILATION_PIN, newState);
+        ventilationState = newState;
+        Serial.printf("🌀 Ventilation Fan: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case DISHWASHER_ID:
+      if (dishwasherState != newState) {
+        setRelay(RELAY_DISHWASHER_PIN, newState);
+        dishwasherState = newState;
+        Serial.printf("🧼 Dishwasher: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case WINDOW_ID:
+      if (windowState != newState) {
+        setWindow(newState);
+        windowState = newState;
+        Serial.printf("🪟 Windows: %s (from web)\n", newState ? "OPEN" : "CLOSED");
+      }
+      break;
+  }
+}
+
+// ==================== Set Relay ====================
+void setRelay(int pin, bool state) {
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(pin, state ? LOW : HIGH);
+  } else {
+    digitalWrite(pin, state ? HIGH : LOW);
+  }
+}
+
+// ==================== Set Window Servo ====================
+void setWindow(bool state) {
+  if (state) {
+    windowServo.write(180);  // OPEN
+  } else {
+    windowServo.write(0);    // CLOSED
+  }
+  delay(50);  // Small delay for servo
+}
+
+// ==================== MQ-3 ALCOHOL SENSOR FUNCTIONS ====================
+// These functions describe alcohol vapor concentration ONLY.
+// The MQ-3 is being used as an alcohol sensor here — not a gas sensor.
+// No gas-related labels are used anywhere below.
+
+// Map raw ADC value to 0-100% alcohol concentration scale
+int calculateAlcoholPercentage(int rawValue) {
+  if (rawValue >= 4000) return 100;
+  if (rawValue >= 3000) return map(rawValue, 3000, 4000, 75, 100);
+  if (rawValue >= 2000) return map(rawValue, 2000, 3000, 50, 75);
+  if (rawValue >= 1000) return map(rawValue, 1000, 2000, 25, 50);
+  if (rawValue >= 500)  return map(rawValue, 500,  1000, 10, 25);
+  return map(rawValue, 0, 500, 0, 10);
+}
+
+// Simple status label sent to the web dashboard
+// Returns: DANGEROUS / HIGH / MODERATE / LOW / CLEAN
+String getAlcoholStatus(int rawValue) {
+  if (rawValue > MQ3_VERY_HIGH_THRESHOLD) return "DANGEROUS";
+  if (rawValue > MQ3_HIGH_THRESHOLD)      return "HIGH";
+  if (rawValue > MQ3_MODERATE_THRESHOLD)  return "MODERATE";
+  if (rawValue > MQ3_LOW_THRESHOLD)       return "LOW";
+  return "CLEAN";
+}
+
+// Detailed severity label used in the sensor message
+// Returns: CRITICAL / WARNING / ELEVATED / SLIGHT / NORMAL
+String getAlcoholDetailedStatus(int rawValue) {
+  if (rawValue > MQ3_VERY_HIGH_THRESHOLD) return "CRITICAL";
+  if (rawValue > MQ3_HIGH_THRESHOLD)      return "WARNING";
+  if (rawValue > MQ3_MODERATE_THRESHOLD)  return "ELEVATED";
+  if (rawValue > MQ3_LOW_THRESHOLD)       return "SLIGHT";
+  return "NORMAL";
+}
+
+// Human-readable alcohol level description shown on the web dashboard.
+// Replaces the old getMQ3GasType() which incorrectly returned
+// "GAS LEAK" and "TRACE GASES". Now alcohol-specific only.
+String getAlcoholLevel(int rawValue) {
+  if (rawValue > MQ3_VERY_HIGH_THRESHOLD) return "DANGEROUS ALCOHOL VAPOR";
+  if (rawValue > MQ3_HIGH_THRESHOLD)      return "HIGH ALCOHOL VAPOR";
+  if (rawValue > MQ3_MODERATE_THRESHOLD)  return "ALCOHOL DETECTED";
+  if (rawValue > MQ3_LOW_THRESHOLD)       return "TRACE ALCOHOL";
+  return "NO ALCOHOL";
+}
+
+// ==================== FIRE SENSOR FUNCTIONS ====================
+
+String getFireStatus(int value) {
+  if (value < FIRE_CRITICAL_THRESHOLD) return "FIRE DETECTED";
+  if (value < FIRE_WARNING_THRESHOLD) return "FIRE WARNING";
+  return "NO FIRE";
+}
+
+String getFireDetailedStatus(int value) {
+  if (value < FIRE_CRITICAL_THRESHOLD) return "CRITICAL";
+  if (value < FIRE_WARNING_THRESHOLD) return "WARNING";
+  if (value < FIRE_NORMAL_THRESHOLD) return "CAUTION";
+  return "NORMAL";
+}
+
+// ==================== Read and Send Sensors ====================
+void readAndSendSensors() {
+  // Skip if WiFi is not connected
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+  
+  // ============ READ MQ-3 ALCOHOL SENSOR ============
+  int newMq3Value = analogRead(MQ3_PIN);
+  
+  if (newMq3Value >= 0 && newMq3Value <= 4095) {
+    mq3Raw = newMq3Value;
+    mq3ReadFailures = 0;
+    
+    int    percentage   = calculateAlcoholPercentage(mq3Raw);
+    String status       = getAlcoholStatus(mq3Raw);
+    String detailedStatus = getAlcoholDetailedStatus(mq3Raw);
+    String alcoholLevel = getAlcoholLevel(mq3Raw);
+    
+    // Message format: raw|percentage%|STATUS|DETAILED|ALCOHOL_LEVEL
+    // e.g. "3200|80%|HIGH|WARNING|HIGH ALCOHOL VAPOR"
+    // NOTE: field 5 is now always an alcohol description, never a gas label.
+    String mq3Message = String(mq3Raw)   + "|" +
+                        String(percentage) + "%|" +
+                        status             + "|" +
+                        detailedStatus     + "|" +
+                        alcoholLevel;
+    
+    // Send to backend
+    sendSensorData(ALCOHOL_ID, mq3Message);
+    
+    // ── Serial feedback (alcohol language only) ──────────────
+    if (mq3Raw > MQ3_VERY_HIGH_THRESHOLD) {
+      Serial.printf("🍺🚨 DANGEROUS ALCOHOL LEVEL! %s - Value: %d (%d%%) - ALERT SENT TO WEB\n",
+                    alcoholLevel.c_str(), mq3Raw, percentage);
+      
+    } else if (mq3Raw > MQ3_HIGH_THRESHOLD) {
+      Serial.printf("🍺⚠️  HIGH ALCOHOL: %s - Value: %d (%d%%) - ALERT SENT TO WEB\n",
+                    alcoholLevel.c_str(), mq3Raw, percentage);
+      
+    } else if (mq3Raw > MQ3_MODERATE_THRESHOLD) {
+      static int moderateCounter = 0;
+      moderateCounter++;
+      if (moderateCounter % 3 == 0) {
+        Serial.printf("🍺 MODERATE alcohol: %s - %d (%d%%)\n",
+                      alcoholLevel.c_str(), mq3Raw, percentage);
+      }
+      
+    } else if (mq3Raw > MQ3_LOW_THRESHOLD) {
+      static int lowCounter = 0;
+      lowCounter++;
+      if (lowCounter % 5 == 0) {
+        Serial.printf("🍃 TRACE alcohol detected: %d (%d%%)\n", mq3Raw, percentage);
+      }
+      
+    } else {
+      static int cleanCounter = 0;
+      cleanCounter++;
+      if (cleanCounter % 10 == 0) {
+        Serial.printf("✅ No alcohol detected: %d (%d%%)\n", mq3Raw, percentage);
+      }
+    }
+    
+  } else {
+    mq3ReadFailures++;
+    if (mq3ReadFailures >= MAX_READ_FAILURES) {
+      Serial.println("❌ MQ-3 alcohol sensor read failure!");
+      sendSensorData(ALCOHOL_ID, "ERROR|SENSOR_FAILURE|CHECK CONNECTION");
+    }
+  }
+  
+  // ============ READ FIRE SENSOR ============
+  int newFireValue = analogRead(FIRE_SENSOR_PIN);
+  
+  if (newFireValue >= 0 && newFireValue <= 4095) {
+    fireValue = newFireValue;
+    fireReadFailures = 0;
+    
+    String fireStatus = getFireStatus(fireValue);
+    String fireDetailedStatus = getFireDetailedStatus(fireValue);
+    
+    // Message format: raw|DETAILED|STATUS
+    // e.g. "243|CRITICAL|FIRE DETECTED"
+    String fireMessage = String(fireValue) + "|" + fireDetailedStatus + "|" + fireStatus;
+    
+    // Check for state changes with hysteresis
+    bool newFireDetected = (fireValue < FIRE_CRITICAL_THRESHOLD);
+    
+    // Use stable count to prevent false triggers
+    if (newFireDetected != fireDetected) {
+      fireStableCount++;
+      if (fireStableCount >= FIRE_STABLE_THRESHOLD) {
+        fireDetected = newFireDetected;
+        fireStableCount = 0;
+        if (fireDetected) {
+          Serial.println("🔥🔥 CONFIRMED: Fire state changed to DETECTED");
+        } else {
+          Serial.println("✅ Fire state changed to CLEAR");
+        }
+      }
+    } else {
+      fireStableCount = 0;
+    }
+    
+    // Send sensor data - web will handle alerts based on the value
+    sendSensorData(FIRE_SENSOR_ID, fireMessage);
+    
+    // ── Serial feedback ──────────────────────────────────────
+    if (fireValue < FIRE_CRITICAL_THRESHOLD) {
+      Serial.printf("🔥🔥🔥 CRITICAL FIRE DETECTED! Value: %d (WEB SHOULD SHOW POPUP)\n", fireValue);
+      
+    } else if (fireValue < FIRE_WARNING_THRESHOLD) {
+      Serial.printf("⚠️ FIRE WARNING! Value: %d\n", fireValue);
+      
+    } else if (fireValue < FIRE_NORMAL_THRESHOLD) {
+      static int cautionCounter = 0;
+      cautionCounter++;
+      if (cautionCounter % 5 == 0) {
+        Serial.printf("🔥 Fire sensor: %d (Caution range)\n", fireValue);
+      }
+      
+    } else {
+      static int normalCounter = 0;
+      normalCounter++;
+      if (normalCounter % 10 == 0) {
+        Serial.printf("✅ Fire sensor normal: %d\n", fireValue);
+      }
+    }
+    
+  } else {
+    fireReadFailures++;
+    if (fireReadFailures >= MAX_READ_FAILURES) {
+      Serial.println("❌ Fire sensor read failure!");
+      sendSensorData(FIRE_SENSOR_ID, "ERROR|SENSOR_FAILURE|CHECK CONNECTION");
+    }
+  }
+}
+
+// ==================== Send Sensor Data to Backend ====================
+void sendSensorData(int sensorId, String value) {
+  // Double-check WiFi connection
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+  
+  String url = String(serverUrl) + "/devices/" + String(sensorId) + "/sensor";
+  
+  http.begin(wifiClient, url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(300);
+  
+  StaticJsonDocument<200> doc;
+  doc["sensor_value"] = value;
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  int httpCode = http.PUT(jsonString);
+  
+  // Only print failures (not successes)
+  if (httpCode != 200 && httpCode != 201) {
+    static int failCount = 0;
+    failCount++;
+    if (failCount % 5 == 0) {  // Print every 5th failure to avoid spam
+      Serial.printf("❌ Sensor %d update failed: HTTP %d\n", sensorId, httpCode);
+    }
+  }
+  
+  http.end();
+}
