@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Home Control</title>
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background: linear-gradient(180deg, #2d68b8 0%, #1a3d6e 50%, #0f2847 100%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── HEADER ──────────────────────────────── */
+        .header {
+            background: linear-gradient(180deg, #2d68b8 0%, #2557a0 100%);
+            padding: clamp(18px, 3vw, 40px) clamp(16px, 4vw, 48px) clamp(14px, 2.5vw, 30px);
+            text-align: center;
+            position: relative;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.15) 0%, transparent 70%);
+        }
+
+        .header h1 {
+            color: #fff;
+            font-size: clamp(1.2em, 3.5vw, 3em);
+            font-weight: 700;
+            letter-spacing: clamp(2px, 0.6vw, 5px);
+            margin-bottom: 5px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            color: #fff;
+            font-size: clamp(0.65em, 1.2vw, 1em);
+            letter-spacing: clamp(1px, 0.4vw, 3px);
+            text-transform: uppercase;
+            opacity: 0.95;
+        }
+
+        /* ── MODE STATUS BANNER ───────────────────── */
+        .mode-banner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(6px, 1vw, 14px);
+            padding: clamp(4px, 0.8vh, 9px) 20px;
+            background: rgba(0, 0, 0, 0.25);
+            font-size: clamp(0.6em, 1vw, 0.9em);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: white;
+            flex-shrink: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            transition: background 0.5s ease;
+            z-index: 10;
+            position: relative;
+        }
+
+        .mode-banner .banner-dot {
+            width: clamp(7px, 0.9vw, 12px);
+            height: clamp(7px, 0.9vw, 12px);
+            border-radius: 50%;
+            background: #4da6ff;
+            box-shadow: 0 0 8px #4da6ff, 0 0 16px rgba(77, 166, 255, 0.4);
+            transition: background 0.5s ease, box-shadow 0.5s ease;
+        }
+
+        .mode-banner.eco-mode {
+            background: rgba(0, 140, 0, 0.28);
+        }
+
+        .mode-banner.eco-mode .banner-dot {
+            background: #00e600;
+            box-shadow: 0 0 10px #00e600, 0 0 22px rgba(0, 230, 0, 0.45);
+        }
+
+        .mode-banner.normal-mode {
+            background: rgba(30, 80, 191, 0.28);
+        }
+
+        .mode-banner.normal-mode .banner-dot {
+            background: #4da6ff;
+            box-shadow: 0 0 10px #4da6ff, 0 0 22px rgba(77, 166, 255, 0.45);
+        }
+
+        .mode-banner.off-mode {
+            background: rgba(60, 60, 60, 0.28);
+        }
+
+        .mode-banner.off-mode .banner-dot {
+            background: #777;
+            box-shadow: 0 0 5px #666;
+        }
+
+        /* ── MAIN GRID ────────────────────────────── */
+        .main-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1.6fr 1fr;
+            grid-template-rows: 1fr auto;
+            padding: clamp(16px, 3vw, 48px) clamp(16px, 4vw, 60px) clamp(12px, 2vw, 36px);
+            gap: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── LEFT COLUMN ──────────────────────────── */
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(8px, 1.2vw, 14px);
+            padding-right: clamp(10px, 2vw, 28px);
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .control-btn {
+            display: flex;
+            align-items: center;
+            background: #1e4d8a;
+            border-radius: 25px;
+            padding: 0;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            border: none;
+            position: relative;
+            z-index: 3;
+        }
+
+        .control-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+            z-index: 1;
+        }
+
+        .control-btn:hover::before {
+            left: 100%;
+        }
+
+        .control-btn:hover {
+            transform: translateX(8px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), 0 0 20px rgba(30, 77, 138, 0.5);
+            z-index: 4;
+        }
+
+        .control-btn.active {
+            background: #00a000;
+            box-shadow: 0 5px 20px rgba(0, 160, 0, 0.4);
+            z-index: 3;
+        }
+
+        .control-btn.active:hover {
+            box-shadow: 0 8px 30px rgba(0, 160, 0, 0.6), 0 0 25px rgba(0, 200, 0, 0.4);
+        }
+
+        .control-icon-circle {
+            width: clamp(44px, 5.5vw, 68px);
+            height: clamp(44px, 5.5vw, 68px);
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 3px;
+            flex-shrink: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+        }
+
+        .control-btn:hover .control-icon-circle {
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(360deg) scale(1.1);
+        }
+
+        .control-icon-circle .iconify {
+            font-size: clamp(18px, 2.2vw, 32px);
+            color: white;
+            position: relative;
+            z-index: 2;
+        }
+
+        .control-text {
+            flex: 1;
+            color: white;
+            font-size: clamp(0.7em, 1vw, 1em);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: clamp(0.5px, 0.2vw, 1.5px);
+            padding-right: clamp(10px, 1.5vw, 22px);
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 2;
+        }
+
+        .control-btn:hover .control-text {
+            letter-spacing: clamp(1px, 0.3vw, 2.5px);
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        /* ── CENTER COLUMN ────────────────────────── */
+        .center-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 2;
+            gap: 0;
+        }
+
+        .wifi-icon {
+            position: absolute;
+            top: -5px;
+            font-size: clamp(36px, 5vw, 64px);
+            color: rgba(255, 255, 255, 0.14);
+            z-index: 1;
+        }
+
+        .house-display {
+            width: clamp(160px, 28vw, 340px);
+            height: clamp(160px, 28vw, 340px);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .house-shape {
+            width: 80%;
+            height: 60%;
+            background: linear-gradient(135deg, #4a7cb8 0%, #3a6ca8 100%);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            transition: box-shadow 0.6s ease, background 0.6s ease;
+            z-index: 2;
+        }
+
+        .house-shape.eco-glow {
+            box-shadow: 0 0 28px rgba(0, 220, 0, 0.5), 0 0 55px rgba(0, 180, 0, 0.2);
+            background: linear-gradient(135deg, #3a8a50 0%, #2d7040 100%);
+        }
+
+        .house-shape.normal-glow {
+            box-shadow: 0 0 28px rgba(60, 130, 255, 0.45), 0 0 55px rgba(30, 100, 255, 0.2);
+            background: linear-gradient(135deg, #4a7cb8 0%, #3a6ca8 100%);
+        }
+
+        .house-shape.off-glow {
+            box-shadow: none;
+            background: linear-gradient(135deg, #3a4a5a 0%, #2a3848 100%);
+        }
+
+        .house-roof {
+            position: absolute;
+            width: 0;
+            height: 0;
+            z-index: 3;
+        }
+
+        .house-chimney {
+            background: #2d5a9a;
+            position: absolute;
+            border-radius: 2px;
+            z-index: 3;
+        }
+
+        .chimney-smoke {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.3);
+            z-index: 1;
+        }
+
+        .temperature-container {
+            display: flex;
+            align-items: center;
+            gap: clamp(8px, 1.5vw, 22px);
+            position: relative;
+            z-index: 3;
+        }
+
+        .temp-bar-container {
+            width: clamp(10px, 1.2vw, 20px);
+            height: clamp(60px, 10vw, 130px);
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 10px;
+            padding: 3px;
+            position: relative;
+            z-index: 3;
+        }
+
+        .temp-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #ff3333 0%, #ff9933 35%, #ffff33 60%, #66ff66 85%, #00ff00 100%);
+            border-radius: 7px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .temp-indicator {
+            position: absolute;
+            top: 42%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150%;
+            height: clamp(6px, 0.8vw, 12px);
+            background: white;
+            border-radius: 2px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+            z-index: 4;
+        }
+
+        .temp-value {
+            font-size: clamp(2.2em, 5.5vw, 6em);
+            font-weight: 400;
+            color: white;
+            letter-spacing: -3px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            white-space: nowrap;
+            transition: color 0.5s ease, text-shadow 0.5s ease;
+            position: relative;
+            z-index: 3;
+        }
+
+        .temp-value.eco-color {
+            color: #80ffaa;
+            text-shadow: 0 0 18px rgba(0, 230, 100, 0.5);
+        }
+
+        .temp-value.off-color {
+            color: #888;
+            text-shadow: none;
+        }
+
+        /* Weather Status Display */
+        .weather-status {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 160px;
+            justify-content: center;
+            z-index: 4;
+        }
+
+        .weather-icon {
+            font-size: 22px;
+            z-index: 2;
+        }
+
+        .weather-text {
+            font-size: 15px;
+            color: white;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            z-index: 2;
+        }
+
+        /* ── DEVICES UNDER TEMPERATURE ────────────── */
+        .devices-under-temp {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(12px, 2vw, 24px);
+            margin-top: clamp(20px, 3vw, 35px);
+            position: relative;
+            z-index: 5;
+        }
+
+        .device-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: rgba(10, 30, 70, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: clamp(14px, 2vw, 20px) clamp(18px, 2.5vw, 28px);
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(12px);
+            min-width: clamp(85px, 10vw, 120px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .device-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent);
+            border-radius: inherit;
+        }
+
+        .device-item:hover {
+            transform: translateY(-6px) scale(1.08);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Lighting Device */
+        .device-lighting {
+            border-color: rgba(255, 210, 60, 0.4);
+            background: rgba(80, 50, 0, 0.6);
+            box-shadow: 0 0 20px rgba(255, 200, 40, 0.2), inset 0 0 20px rgba(255, 180, 0, 0.08);
+        }
+
+        .device-lighting .device-icon {
+            color: #ffd84a;
+            filter: drop-shadow(0 0 8px rgba(255, 210, 60, 0.8));
+        }
+
+        .device-lighting .device-name {
+            color: #ffd84a;
+        }
+
+        .device-lighting .device-status {
+            color: rgba(255, 216, 74, 0.8);
+        }
+
+        .device-lighting:hover {
+            box-shadow: 0 12px 38px rgba(255, 200, 40, 0.35), 0 0 28px rgba(255, 180, 0, 0.25);
+            border-color: rgba(255, 210, 60, 0.7);
+        }
+
+        /* Security Device */
+        .device-security {
+            border-color: rgba(60, 180, 255, 0.4);
+            background: rgba(0, 40, 80, 0.6);
+            box-shadow: 0 0 20px rgba(60, 180, 255, 0.2), inset 0 0 20px rgba(0, 120, 255, 0.08);
+        }
+
+        .device-security .device-icon {
+            color: #4da6ff;
+            filter: drop-shadow(0 0 8px rgba(77, 166, 255, 0.8));
+        }
+
+        .device-security .device-name {
+            color: #4da6ff;
+        }
+
+        .device-security .device-status {
+            color: rgba(77, 166, 255, 0.8);
+        }
+
+        .device-security:hover {
+            box-shadow: 0 12px 38px rgba(60, 180, 255, 0.35), 0 0 28px rgba(0, 120, 255, 0.25);
+            border-color: rgba(60, 180, 255, 0.7);
+        }
+
+        /* Climate Device */
+        .device-climate {
+            border-color: rgba(100, 255, 100, 0.4);
+            background: rgba(0, 60, 20, 0.6);
+            box-shadow: 0 0 20px rgba(100, 255, 100, 0.2), inset 0 0 20px rgba(0, 200, 100, 0.08);
+        }
+
+        .device-climate .device-icon {
+            color: #80ffaa;
+            filter: drop-shadow(0 0 8px rgba(128, 255, 170, 0.8));
+        }
+
+        .device-climate .device-name {
+            color: #80ffaa;
+        }
+
+        .device-climate .device-status {
+            color: rgba(128, 255, 170, 0.8);
+        }
+
+        .device-climate:hover {
+            box-shadow: 0 12px 38px rgba(100, 255, 100, 0.35), 0 0 28px rgba(0, 200, 100, 0.25);
+            border-color: rgba(100, 255, 100, 0.7);
+        }
+
+        .device-item .device-icon {
+            font-size: clamp(24px, 3vw, 36px);
+            line-height: 1;
+            transition: transform 0.3s ease;
+        }
+
+        .device-item:hover .device-icon {
+            transform: scale(1.2) rotate(5deg);
+        }
+
+        .device-item .device-name {
+            font-size: clamp(0.6em, 0.85vw, 0.9em);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            line-height: 1;
+            text-align: center;
+        }
+
+        .device-item .device-status {
+            font-size: clamp(0.5em, 0.7vw, 0.75em);
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        /* ── RIGHT COLUMN ─────────────────────────── */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(8px, 1.2vw, 14px);
+            padding-left: clamp(10px, 2vw, 28px);
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .mode-btn {
+            flex: 1;
+            max-height: clamp(50px, 7vw, 90px);
+            background: #1e4d8a;
+            border: 3px solid transparent;
+            border-radius: 14px;
+            color: white;
+            font-size: clamp(0.75em, 1.2vw, 1.4em);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: clamp(1px, 0.3vw, 3px);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            z-index: 3;
+        }
+
+        .mode-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+            z-index: 1;
+        }
+
+        .mode-btn:hover::before {
+            width: 400px;
+            height: 400px;
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-4px) scale(1.04);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            z-index: 4;
+        }
+
+        .mode-btn.mode-active {
+            border-color: rgba(255, 255, 255, 0.88);
+            transform: scale(1.05);
+            z-index: 3;
+        }
+
+        .check-badge {
+            display: none;
+            position: absolute;
+            top: 5px;
+            right: 7px;
+            font-size: 0.72em;
+            background: rgba(255, 255, 255, 0.22);
+            border-radius: 50%;
+            width: 1.5em;
+            height: 1.5em;
+            line-height: 1.5em;
+            text-align: center;
+            z-index: 2;
+        }
+
+        .mode-btn.mode-active .check-badge {
+            display: block;
+        }
+
+        .mode-btn.eco {
+            background: linear-gradient(135deg, #00b300 0%, #00d400 100%);
+        }
+
+        .mode-btn.eco:hover,
+        .mode-btn.eco.mode-active {
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3), 0 10px 32px rgba(0, 179, 0, 0.55);
+        }
+
+        .mode-btn.normal {
+            background: linear-gradient(135deg, #1e5fbf 0%, #2570d9 100%);
+        }
+
+        .mode-btn.normal:hover,
+        .mode-btn.normal.mode-active {
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3), 0 10px 32px rgba(30, 95, 191, 0.55);
+        }
+
+        .mode-btn.off {
+            background: linear-gradient(135deg, #505050 0%, #717171 100%);
+        }
+
+        .mode-btn.off:hover,
+        .mode-btn.off.mode-active {
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3), 0 10px 32px rgba(80, 80, 80, 0.55);
+        }
+
+        /* ── BOTTOM NAV ──────────────────────────── */
+        .bottom-row {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            /* Changed to 3 columns for Analytics */
+            gap: clamp(10px, 2vw, 24px);
+            margin-top: clamp(10px, 1.5vw, 24px);
+            position: relative;
+            z-index: 3;
+        }
+
+        .nav-btn {
+            padding: clamp(12px, 1.8vw, 24px);
+            background: #1e4d8a;
+            border: none;
+            border-radius: 15px;
+            color: white;
+            font-size: clamp(0.8em, 1.3vw, 1.4em);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: clamp(1px, 0.3vw, 2px);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 1.2vw, 16px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            z-index: 3;
+        }
+
+        .nav-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            transition: width 0.5s ease, height 0.5s ease;
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .nav-btn:hover::after {
+            width: 500px;
+            height: 500px;
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+            z-index: 4;
+        }
+
+        .nav-btn .iconify {
+            font-size: clamp(1.2em, 2vw, 2em);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 2;
+        }
+
+        .nav-btn:hover .iconify {
+            transform: scale(1.15) rotate(5deg);
+        }
+
+        .nav-btn.rooms {
+            background: linear-gradient(135deg, #00a000 0%, #00c000 100%);
+        }
+
+        .nav-btn.rooms:hover {
+            box-shadow: 0 12px 40px rgba(0, 160, 0, 0.6), 0 0 35px rgba(0, 192, 0, 0.4);
+        }
+
+        .nav-btn.home {
+            background: linear-gradient(135deg, #1e5fbf 0%, #2570d9 100%);
+        }
+
+        .nav-btn.home:hover {
+            box-shadow: 0 12px 40px rgba(30, 95, 191, 0.6), 0 0 35px rgba(37, 112, 217, 0.4);
+        }
+
+        /* Analytics Button - New Purple Theme */
+        .nav-btn.analytics {
+            background: linear-gradient(135deg, #9333ea 0%, #a855f7 100%);
+        }
+
+        .nav-btn.analytics:hover {
+            box-shadow: 0 12px 40px rgba(147, 51, 234, 0.6), 0 0 35px rgba(168, 85, 247, 0.4);
+        }
+
+        /* ── TOAST ────────────────────────────────── */
+        #toast {
+            position: fixed;
+            top: clamp(55px, 9vh, 90px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-16px);
+            background: rgba(8, 22, 48, 0.93);
+            color: white;
+            padding: 12px 28px;
+            border-radius: 40px;
+            font-size: clamp(0.7em, 1.1vw, 0.95em);
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.32s ease, transform 0.32s ease;
+            white-space: nowrap;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #toast .toast-icon {
+            font-size: 1.25em;
+        }
+
+        /* ── PORTRAIT / MOBILE ────────────────────── */
+        @media (max-width: 680px) {
+            body {
+                overflow-y: auto;
+            }
+
+            .main-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto auto;
+                gap: clamp(15px, 2.2vw, 18px);
+                padding: clamp(15px, 2.5vw, 18px) clamp(15px, 3.5vw, 22px);
+            }
+
+            .center-column {
+                order: -1;
+                margin-top: 20px;
+                margin-bottom: 20px;
+            }
+
+            .left-column,
+            .right-column {
+                padding: 0;
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+            }
+
+            .left-column .control-btn {
+                flex: 1 1 calc(50% - 5px);
+                min-width: 140px;
+                max-width: 220px;
+            }
+
+            .right-column .mode-btn {
+                flex: 1 1 calc(33% - 6px);
+                min-width: 85px;
+                max-height: none;
+                padding: 14px 8px;
+            }
+
+            .bottom-row {
+                margin-top: 20px;
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+
+            .nav-btn {
+                padding: 16px;
+            }
+
+            .weather-status {
+                top: -30px;
+                min-width: 140px;
+                padding: 8px 16px;
+            }
+
+            .house-display {
+                margin: 20px 0;
+            }
+
+            .devices-under-temp {
+                gap: 10px;
+                margin-top: 25px;
+            }
+
+            .device-item {
+                padding: 12px 16px;
+                min-width: 75px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .header h1 {
+                font-size: 1.1em;
+                letter-spacing: 1px;
+            }
+
+            .left-column .control-btn {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
+
+            .temp-value {
+                font-size: 2em;
+            }
+
+            .weather-status {
+                min-width: 120px;
+                padding: 6px 12px;
+                top: -25px;
+            }
+
+            .weather-text {
+                font-size: 12px;
+            }
+
+            .devices-under-temp {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .device-item {
+                width: 100%;
+                max-width: 200px;
+            }
+
+            .bottom-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+        }
+
+        @media (min-width: 1800px) {
+            .main-grid {
+                padding: 56px 80px 44px;
+            }
+
+            .header h1 {
+                font-size: 3.6em;
+                letter-spacing: 6px;
+            }
+
+            .temp-value {
+                font-size: 7em;
+            }
+
+            .weather-status {
+                top: -50px;
+                min-width: 200px;
+                padding: 12px 25px;
+            }
+
+            .weather-text {
+                font-size: 18px;
+            }
+
+            .devices-under-temp {
+                margin-top: 45px;
+                gap: 30px;
+            }
+
+            .device-item {
+                min-width: 140px;
+                padding: 20px 30px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="toast">
+        <span class="toast-icon" id="toastIcon">✓</span>
+        <span id="toastMsg">Mode Changed</span>
+    </div>
+
+    <div class="header">
+        <h1>REMOTE HOME CONTROL</h1>
+        <p>Home Automation System</p>
+    </div>
+
+    <div class="mode-banner normal-mode" id="modeBanner">
+        <div class="banner-dot"></div>
+        <span id="bannerText">Normal Mode — Active</span>
+    </div>
+
+    <div class="main-grid">
+
+        <!-- Left: Control Buttons -->
+        <div class="left-column">
+            <button class="control-btn active" onclick="toggleControl(this, 'climate')">
+                <div class="control-icon-circle" id="climateIcon">
+                    <span class="iconify" data-icon="mdi:white-balance-sunny"></span>
+                </div>
+                <div class="control-text">Climate</div>
+            </button>
+            <button class="control-btn" onclick="window.location.href='scenes.html'">
+                <div class="control-icon-circle">
+                    <span class="iconify" data-icon="mdi:palette"></span>
+                </div>
+                <div class="control-text">Scenes</div>
+            </button>
+            <button class="control-btn" onclick="window.location.href='home_analytics.html'">
+                <div class="control-icon-circle">
+                    <span class="iconify" data-icon="mdi:chart-line"></span>
+                </div>
+                <div class="control-text">Analytics</div>
+            </button>
+            <button class="control-btn" onclick="toggleControl(this, 'settings')">
+                <div class="control-icon-circle">
+                    <span class="iconify" data-icon="mdi:cog"></span>
+                </div>
+                <div class="control-text">Settings</div>
+            </button>
+        </div>
+
+        <!-- Center: House with Weather, Temperature & Devices -->
+        <div class="center-column">
+            <div class="wifi-icon">
+                <span class="iconify" data-icon="mdi:wifi"></span>
+            </div>
+
+            <!-- Weather Status Display -->
+            <div class="weather-status" id="weatherStatus">
+                <span class="weather-icon" id="weatherIcon">☀️</span>
+                <span class="weather-text" id="weatherText">Sunny</span>
+            </div>
+
+            <div class="house-display" id="houseDisplay">
+                <div class="house-roof" id="houseRoof"></div>
+                <div class="house-chimney" id="houseChimney"></div>
+                <div class="chimney-smoke" id="chimneySmoke">
+                    <span class="iconify" data-icon="mdi:cloud-outline"></span>
+                </div>
+                <div class="house-shape normal-glow" id="houseShape">
+                    <div class="temperature-container">
+                        <div class="temp-bar-container">
+                            <div class="temp-bar">
+                                <div class="temp-indicator"></div>
+                            </div>
+                        </div>
+                        <div class="temp-value" id="tempDisplay">22°C</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Devices Under Temperature -->
+            <div class="devices-under-temp">
+                <!-- Lighting Device -->
+                <div class="device-item device-lighting" onclick="toggleDevice(this, 'lighting')">
+                    <span class="iconify device-icon" data-icon="mdi:lightbulb"></span>
+                    <span class="device-name">Lighting</span>
+                    <span class="device-status">ON</span>
+                </div>
+
+                <!-- Security Device -->
+                <div class="device-item device-security" onclick="toggleDevice(this, 'security')">
+                    <span class="iconify device-icon" data-icon="mdi:shield-home"></span>
+                    <span class="device-name">Security</span>
+                    <span class="device-status">ARMED</span>
+                </div>
+
+                <!-- Climate Device -->
+                <div class="device-item device-climate" onclick="toggleDevice(this, 'climate')">
+                    <span class="iconify device-icon" data-icon="mdi:thermostat"></span>
+                    <span class="device-name">Climate</span>
+                    <span class="device-status">22°C</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right: Mode Buttons -->
+        <div class="right-column">
+            <button class="mode-btn eco" onclick="setMode('eco',this)">
+                <span class="check-badge">✓</span>
+                Eco Mode
+            </button>
+            <button class="mode-btn normal mode-active" onclick="setMode('normal',this)">
+                <span class="check-badge">✓</span>
+                Normal
+            </button>
+            <button class="mode-btn off" onclick="setMode('off',this)">
+                <span class="check-badge">✓</span>
+                Off
+            </button>
+        </div>
+
+        <!-- Bottom Navigation - 3 Buttons -->
+        <div class="bottom-row">
+            <button class="nav-btn home" onclick="window.location.href='home_dashboard.html'">
+                <span class="iconify" data-icon="mdi:home"></span>
+                Home
+            </button>
+            <button class="nav-btn analytics" onclick="window.location.href='home_analytics.html'">
+                <span class="iconify" data-icon="mdi:chart-line"></span>
+                Analytics
+            </button>
+            <button class="nav-btn rooms" onclick="window.location.href='rooms.html'">
+                <span class="iconify" data-icon="mdi:bed"></span>
+                Rooms
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* ── House geometry ──────────────────────────────── */
+        let currentMode = 'normal';
+        let currentWeather = 'sunny';
+        let currentControl = 'climate';
+
+        function applyRoofColor(mode) {
+            const colors = { eco: '#2d7040', normal: '#3a6ca8', off: '#2a3848' };
+            const roof = document.getElementById('houseRoof');
+            const px = parseInt(roof.style.borderBottomWidth) || 0;
+            if (px) roof.style.borderBottom = px + 'px solid ' + (colors[mode] || '#3a6ca8');
+        }
+
+        function resizeHouse() {
+            const display = document.getElementById('houseDisplay');
+            const size = display.offsetWidth;
+            const shapeW = size * 0.80;
+            const shapeH = size * 0.60;
+            const halfW = Math.round(shapeW / 2);
+            const roofH = Math.round(shapeH * 0.44);
+            const colors = { eco: '#2d7040', normal: '#3a6ca8', off: '#2a3848' };
+
+            const roof = document.getElementById('houseRoof');
+            roof.style.cssText = `
+                position:absolute; width:0; height:0;
+                border-left:${halfW}px solid transparent;
+                border-right:${halfW}px solid transparent;
+                border-bottom:${roofH}px solid ${colors[currentMode]};
+                top:-${roofH}px;
+                left:50%; transform:translateX(-50%);
+            `;
+
+            const cW = Math.round(size * 0.075);
+            const cH = Math.round(size * 0.165);
+            const chimney = document.getElementById('houseChimney');
+            chimney.style.width = cW + 'px';
+            chimney.style.height = cH + 'px';
+            chimney.style.top = '-' + (roofH + cH - Math.round(size * 0.03)) + 'px';
+            chimney.style.right = Math.round(size * 0.13) + 'px';
+
+            const smoke = document.getElementById('chimneySmoke');
+            smoke.style.fontSize = Math.round(size * 0.11) + 'px';
+            smoke.style.top = '-' + (roofH + cH + Math.round(size * 0.04)) + 'px';
+            smoke.style.right = Math.round(size * 0.135) + 'px';
+        }
+
+        setTimeout(resizeHouse, 100);
+        window.addEventListener('resize', resizeHouse);
+
+        /* ── Toast ───────────────────────────────────────── */
+        let toastTimer;
+        function showToast(msg, icon) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            document.getElementById('toastIcon').textContent = icon;
+            t.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+        }
+
+        /* ── Device Controls ─────────────────────────────── */
+        function toggleDevice(device, deviceType) {
+            const status = device.querySelector('.device-status');
+            const isOff = status.textContent === 'OFF' || status.textContent === 'DISABLED';
+
+            switch (deviceType) {
+                case 'lighting':
+                    if (isOff) {
+                        status.textContent = 'ON';
+                        showToast('Lighting Turned On', '💡');
+                    } else {
+                        status.textContent = 'OFF';
+                        showToast('Lighting Turned Off', '🌑');
+                    }
+                    break;
+
+                case 'security':
+                    if (isOff) {
+                        status.textContent = 'ARMED';
+                        showToast('Security System Armed', '🛡️');
+                    } else {
+                        status.textContent = 'DISABLED';
+                        showToast('Security System Disabled', '✅');
+                    }
+                    break;
+
+                case 'climate':
+                    if (isOff) {
+                        status.textContent = '22°C';
+                        showToast('Climate Control Activated', '🌡️');
+                    } else {
+                        status.textContent = 'OFF';
+                        showToast('Climate Control Off', '⏻');
+                    }
+                    break;
+            }
+
+            // Add animation effect
+            device.style.transform = 'translateY(-8px) scale(1.1)';
+            setTimeout(() => {
+                device.style.transform = 'translateY(-6px) scale(1.08)';
+            }, 150);
+            setTimeout(() => {
+                device.style.transform = '';
+            }, 300);
+        }
+
+        /* ── Control buttons ─────────────────────────────── */
+        function toggleControl(btn, controlType) {
+            document.querySelectorAll('.control-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentControl = controlType;
+            updateDisplayForControl(controlType);
+        }
+
+        function updateDisplayForControl(controlType) {
+            const tempValue = document.getElementById('tempDisplay');
+            const weatherStatus = document.getElementById('weatherStatus');
+            switch (controlType) {
+                case 'climate':
+                    if (currentMode !== 'off') {
+                        const baseTemp = currentMode === 'eco' ? 20 : 22;
+                        tempValue.textContent = (baseTemp + getWeatherTempEffect()) + '°C';
+                    } else {
+                        tempValue.textContent = '--°C';
+                    }
+                    weatherStatus.style.display = 'flex';
+                    break;
+                case 'scenes':
+                    tempValue.textContent = '3 Active';
+                    weatherStatus.style.display = 'none';
+                    break;
+                case 'analytics':
+                    window.location.href = 'home_analytics.html';
+                    break;
+                case 'settings':
+                    tempValue.textContent = 'Config';
+                    weatherStatus.style.display = 'none';
+                    break;
+            }
+        }
+
+        /* ── Weather Simulation ──────────────────────────── */
+        const weatherConditions = [
+            { type: 'sunny', icon: '☀️', text: 'Sunny', tempEffect: 2 },
+            { type: 'cloudy', icon: '☁️', text: 'Cloudy', tempEffect: 0 },
+            { type: 'rainy', icon: '🌧️', text: 'Rainy', tempEffect: -2 },
+            { type: 'stormy', icon: '⛈️', text: 'Stormy', tempEffect: -3 },
+            { type: 'partly-cloudy', icon: '⛅', text: 'Partly Cloudy', tempEffect: 1 },
+        ];
+
+        function getWeatherTempEffect() {
+            const w = weatherConditions.find(w => w.type === currentWeather);
+            return w ? w.tempEffect : 0;
+        }
+
+        function updateWeather() {
+            const rnd = weatherConditions[Math.floor(Math.random() * weatherConditions.length)];
+            currentWeather = rnd.type;
+            document.getElementById('weatherIcon').textContent = rnd.icon;
+            document.getElementById('weatherText').textContent = rnd.text;
+
+            const climateIcon = document.getElementById('climateIcon').querySelector('.iconify');
+            const iconMap = {
+                'sunny': 'mdi:white-balance-sunny',
+                'cloudy': 'mdi:weather-cloudy',
+                'rainy': 'mdi:weather-rainy',
+                'stormy': 'mdi:weather-lightning-rainy',
+                'partly-cloudy': 'mdi:weather-partly-cloudy',
+            };
+            climateIcon.setAttribute('data-icon', iconMap[currentWeather]);
+
+            if (currentControl === 'climate' && currentMode !== 'off') {
+                const base = currentMode === 'eco' ? 20 : 22;
+                document.getElementById('tempDisplay').textContent = (base + rnd.tempEffect) + '°C';
+            }
+
+            // Update climate device status if showing temperature
+            const climateDevice = document.querySelector('.device-climate .device-status');
+            if (climateDevice && currentMode !== 'off' && currentControl === 'climate') {
+                const base = currentMode === 'eco' ? 20 : 22;
+                climateDevice.textContent = (base + rnd.tempEffect) + '°C';
+            }
+        }
+
+        updateWeather();
+        setInterval(updateWeather, 30000 + Math.random() * 30000);
+
+        /* ── Mode switching ──────────────────────────────── */
+        let baseTemp = 22;
+
+        const modeConfig = {
+            eco: {
+                temp: 20, bannerClass: 'eco-mode', bannerText: 'Eco Mode — Active',
+                houseClass: 'eco-glow', tempClass: 'eco-color',
+                msg: 'Eco Mode Activated', icon: '🌿',
+            },
+            normal: {
+                temp: 22, bannerClass: 'normal-mode', bannerText: 'Normal Mode — Active',
+                houseClass: 'normal-glow', tempClass: '',
+                msg: 'Normal Mode Activated', icon: '🏠',
+            },
+            off: {
+                temp: null, bannerClass: 'off-mode', bannerText: 'System — Off',
+                houseClass: 'off-glow', tempClass: 'off-color',
+                msg: 'System Turned Off', icon: '⏻',
+            },
+        };
+
+        function setMode(mode, btn) {
+            if (mode === currentMode) return;
+            currentMode = mode;
+            const cfg = modeConfig[mode];
+            baseTemp = cfg.temp;
+
+            const tempEl = document.getElementById('tempDisplay');
+            if (currentControl === 'climate') {
+                const weatherEffect = getWeatherTempEffect();
+                const displayTemp = cfg.temp !== null ? cfg.temp + weatherEffect : null;
+                tempEl.textContent = displayTemp !== null ? displayTemp + '°C' : '--°C';
+            } else {
+                tempEl.textContent = cfg.temp !== null ? cfg.temp + '°C' : '--°C';
+            }
+            tempEl.className = 'temp-value ' + cfg.tempClass;
+
+            document.getElementById('houseShape').className = 'house-shape ' + cfg.houseClass;
+            applyRoofColor(mode);
+
+            const banner = document.getElementById('modeBanner');
+            banner.className = 'mode-banner ' + cfg.bannerClass;
+            document.getElementById('bannerText').textContent = cfg.bannerText;
+
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('mode-active'));
+            btn.classList.add('mode-active');
+
+            // Update climate device status
+            const climateDevice = document.querySelector('.device-climate .device-status');
+            if (climateDevice) {
+                if (mode === 'off') {
+                    climateDevice.textContent = 'OFF';
+                } else {
+                    const weatherEffect = getWeatherTempEffect();
+                    climateDevice.textContent = (cfg.temp + weatherEffect) + '°C';
+                }
+            }
+
+            if (currentControl === 'climate') updateDisplayForControl('climate');
+
+            showToast(cfg.msg, cfg.icon);
+        }
+
+        /* ── Temperature fluctuation ─────────────────────── */
+        setInterval(() => {
+            if (baseTemp === null || currentControl !== 'climate') return;
+            const v = (Math.random() - 0.5) * 0.4;
+            const newTemp = (baseTemp + getWeatherTempEffect() + v).toFixed(1);
+            document.getElementById('tempDisplay').textContent = newTemp + '°C';
+
+            // Update climate device if active
+            const climateDevice = document.querySelector('.device-climate .device-status');
+            if (climateDevice && climateDevice.textContent !== 'OFF') {
+                climateDevice.textContent = newTemp + '°C';
+            }
+        }, 5000);
+
+        setTimeout(() => { resizeHouse(); document.body.style.visibility = 'visible'; }, 100);
+    </script>
+
+    <!-- Hub Navigation Button -->
+    <div style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
+        <a href="all_in_one.html"
+            style="display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 12px 24px; border-radius: 50px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); transition: all 0.3s ease;"
+            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(102, 126, 234, 0.6)';"
+            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.4)';">
+            <span style="font-size: 20px;">🏠</span>
+            <span>HUB</span>
+            <span style="font-size: 14px; opacity: 0.8;">all_in_one</span>
+        </a>
+    </div>
+</body>
+
+</html>
