@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Home — Scenes</title>
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            font-family: 'Exo 2', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(180deg, #2d68b8 0%, #1a3d6e 50%, #0f2847 100%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-size: 18px;
+            gap: 15px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 3px;
+        }
+
+        .loading .iconify {
+            animation: spin 1s linear infinite;
+            font-size: 30px;
+            color: #00ff88;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* SCENE SECTION */
+        .scene-section {
+            min-height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .scene-bg {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), filter 0.6s ease;
+            z-index: 0;
+        }
+
+        .scene-section:hover .scene-bg {
+            transform: scale(1.04);
+        }
+
+        .scene-section.is-active .scene-bg {
+            filter: brightness(1.12) saturate(1.15);
+        }
+
+        .scene-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            transition: background 0.4s ease;
+        }
+
+        .scene-section:hover .scene-overlay {
+            filter: brightness(1.08);
+        }
+
+        /* AMBIENT LAYER */
+        .scene-ambient {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .scene-section.is-active .scene-ambient {
+            opacity: 1;
+        }
+
+        .scene-ambient.morning {
+            background: radial-gradient(ellipse at 25% 15%, rgba(255, 200, 60, 0.28) 0%, transparent 55%);
+        }
+
+        .scene-ambient.coffee {
+            background: radial-gradient(ellipse at 50% 85%, rgba(120, 60, 20, 0.32) 0%, transparent 55%);
+        }
+
+        .scene-ambient.dinner {
+            background: radial-gradient(ellipse at 50% 95%, rgba(200, 80, 20, 0.28) 0%, transparent 55%);
+        }
+
+        .scene-ambient.night {
+            background: radial-gradient(ellipse at 50% 50%, rgba(20, 35, 110, 0.45) 0%, rgba(0, 5, 25, 0.55) 100%);
+        }
+
+        .scene-ambient.party {
+            animation: partyAmb 2.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes partyAmb {
+            from {
+                background: radial-gradient(ellipse at 25% 50%, rgba(200, 0, 200, 0.28) 0%, transparent 55%), radial-gradient(ellipse at 75% 50%, rgba(0, 100, 255, 0.22) 0%, transparent 55%);
+            }
+
+            to {
+                background: radial-gradient(ellipse at 75% 50%, rgba(255, 0, 100, 0.28) 0%, transparent 55%), radial-gradient(ellipse at 25% 50%, rgba(100, 0, 255, 0.22) 0%, transparent 55%);
+            }
+        }
+
+        .scene-ambient.away {
+            background: radial-gradient(ellipse at 50% 0%, rgba(0, 80, 160, 0.3) 0%, transparent 55%);
+        }
+
+        /* CONTENT */
+        .scene-content {
+            position: relative;
+            z-index: 4;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(24px, 4vw, 56px) clamp(20px, 5vw, 64px);
+            text-align: center;
+        }
+
+        /* ICON WRAP */
+        .scene-icon-wrap {
+            width: clamp(90px, 16vw, 160px);
+            height: clamp(90px, 16vw, 160px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: clamp(16px, 3vw, 32px);
+            position: relative;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .scene-section:hover .scene-icon-wrap {
+            transform: scale(1.12) translateY(-6px);
+        }
+
+        .scene-section.is-active .scene-icon-wrap {
+            animation: iconFloat 2s ease-in-out infinite;
+        }
+
+        @keyframes iconFloat {
+
+            0%,
+            100% {
+                transform: scale(1.08);
+            }
+
+            50% {
+                transform: scale(1.14) translateY(-5px);
+            }
+        }
+
+        .scene-icon-wrap .iconify {
+            font-size: clamp(44px, 8vw, 80px);
+            filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.5));
+            position: relative;
+            z-index: 2;
+        }
+
+        .scene-icon-wrap::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            transition: border-color 0.4s, box-shadow 0.4s;
+        }
+
+        .scene-section:hover .scene-icon-wrap::before {
+            border-color: rgba(255, 255, 255, 0.6);
+            box-shadow: 0 0 24px rgba(255, 255, 255, 0.25);
+        }
+
+        .scene-section.is-active .scene-icon-wrap::before {
+            border-color: rgba(255, 255, 255, 0.75);
+            animation: ringPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes ringPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(255, 255, 255, 0.65);
+            }
+        }
+
+        .scene-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2.2em, 6.5vw, 5.5em);
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: clamp(-0.5px, -0.02vw, -2px);
+            line-height: 1;
+            text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+            margin-bottom: clamp(8px, 1.5vw, 18px);
+            transition: letter-spacing 0.3s ease;
+        }
+
+        .scene-section:hover .scene-name {
+            letter-spacing: clamp(1px, 0.3vw, 4px);
+        }
+
+        .scene-tagline {
+            font-size: clamp(0.65em, 1.1vw, 0.95em);
+            color: rgba(255, 255, 255, 0.65);
+            letter-spacing: clamp(2px, 0.5vw, 5px);
+            text-transform: uppercase;
+            font-weight: 500;
+            margin-bottom: clamp(14px, 2vw, 24px);
+        }
+
+        /* DEVICE PREVIEW PILLS */
+        .scene-device-preview {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 7px;
+            margin-bottom: clamp(18px, 2.5vw, 30px);
+            max-width: 620px;
+        }
+
+        .device-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 11px;
+            border-radius: 30px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(8px);
+            transition: all 0.4s ease;
+        }
+
+        .device-pill.on {
+            background: rgba(0, 180, 80, 0.3);
+            border-color: rgba(0, 255, 136, 0.55);
+        }
+
+        .device-pill.off {
+            background: rgba(60, 60, 90, 0.35);
+            border-color: rgba(120, 130, 180, 0.3);
+            opacity: 0.65;
+        }
+
+        .device-pill .iconify {
+            font-size: 12px;
+        }
+
+        .device-pill.on .iconify {
+            color: #00ff88;
+            filter: drop-shadow(0 0 5px rgba(0, 255, 136, 0.8));
+        }
+
+        .device-pill.off .iconify {
+            color: rgba(140, 160, 220, 0.75);
+        }
+
+        .device-pill .pill-state {
+            font-size: 8px;
+            opacity: 0.75;
+            margin-left: 2px;
+        }
+
+        /* When scene is active, ON pills glow */
+        .scene-section.is-active .device-pill.on {
+            animation: pillGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes pillGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 6px rgba(0, 255, 136, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 16px rgba(0, 255, 136, 0.7);
+            }
+        }
+
+        /* ACTIVATE BUTTON */
+        .scene-activate {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: clamp(10px, 1.5vw, 16px) clamp(22px, 3.5vw, 42px);
+            border-radius: 40px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(10px);
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(0.65em, 0.95vw, 0.9em);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: clamp(1.5px, 0.4vw, 3px);
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            transform: translateY(12px);
+        }
+
+        .scene-section:hover .scene-activate {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .scene-section.is-active .scene-activate {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .scene-activate:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 24px rgba(255, 255, 255, 0.2);
+        }
+
+        .scene-activate.activated {
+            background: rgba(0, 180, 60, 0.5);
+            border-color: rgba(0, 220, 80, 0.7);
+            box-shadow: 0 0 28px rgba(0, 200, 80, 0.4);
+        }
+
+        .scene-activate.party-active {
+            background: rgba(180, 0, 200, 0.45);
+            border-color: rgba(255, 80, 255, 0.8);
+            animation: partyPulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes partyPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(255, 0, 255, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(255, 0, 255, 0.9);
+            }
+        }
+
+        /* ACTIVE BADGE */
+        .active-scene-badge {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            z-index: 5;
+            background: rgba(0, 180, 70, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.65);
+            border-radius: 20px;
+            padding: 5px 14px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(6px);
+            animation: activeBadgePulse 2s ease-in-out infinite;
+        }
+
+        .scene-section.is-active .active-scene-badge {
+            display: flex;
+        }
+
+        @keyframes activeBadgePulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 22px rgba(0, 255, 136, 0.65);
+            }
+        }
+
+        .active-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 0 0 8px #00ff88;
+            animation: dotBeat 1.2s ease-in-out infinite;
+        }
+
+        @keyframes dotBeat {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.45);
+            }
+        }
+
+        /* MUSIC BADGE */
+        .music-badge {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            z-index: 5;
+            background: rgba(140, 0, 160, 0.6);
+            border: 1px solid rgba(255, 80, 255, 0.5);
+            border-radius: 20px;
+            padding: 5px 12px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(6px);
+        }
+
+        .music-badge .iconify {
+            font-size: 13px;
+            animation: spin 3s linear infinite;
+        }
+
+        /* SCENE NUM */
+        .scene-num {
+            position: absolute;
+            top: clamp(16px, 2.5vw, 32px);
+            left: clamp(20px, 3.5vw, 48px);
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(0.6em, 0.9vw, 0.78em);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+            z-index: 4;
+        }
+
+        /* DEVICE COUNT */
+        .scene-device-count {
+            position: absolute;
+            bottom: clamp(16px, 2.5vw, 28px);
+            right: clamp(20px, 3.5vw, 48px);
+            z-index: 4;
+            background: rgba(0, 0, 0, 0.38);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 20px;
+            padding: 5px 13px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .scene-device-count .iconify {
+            font-size: 13px;
+            color: rgba(100, 200, 255, 0.8);
+        }
+
+        /* DIVIDER */
+        .scene-divider {
+            height: 3px;
+            position: relative;
+            z-index: 3;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12) 30%, rgba(255, 255, 255, 0.12) 70%, transparent);
+        }
+
+        /* SCROLL DOTS */
+        .scroll-nav {
+            position: fixed;
+            right: clamp(10px, 2vw, 24px);
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .scroll-dot-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .scroll-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.25);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1.5px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .scroll-dot.active {
+            background: white;
+            transform: scale(1.4);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .scroll-dot-label {
+            position: absolute;
+            right: 16px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            transition: color 0.3s;
+            pointer-events: none;
+        }
+
+        .scroll-dot-wrap:hover .scroll-dot-label,
+        .scroll-dot.active+.scroll-dot-label {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* PARTY BAR */
+        #partyBar {
+            position: fixed;
+            bottom: 84px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            z-index: 500;
+            background: rgba(55, 0, 75, 0.93);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 80, 255, 0.45);
+            border-radius: 50px;
+            padding: 10px 18px 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 6px 40px rgba(180, 0, 255, 0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            white-space: nowrap;
+            max-width: 95vw;
+        }
+
+        #partyBar.show {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .pb-disc {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            position: relative;
+            background: conic-gradient(#ff00ff 0%, #aa00ff 33%, #ff00aa 66%, #ff00ff 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pb-disc::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background: rgba(55, 0, 75, 0.95);
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .pb-disc.spin {
+            animation: discSpin 2s linear infinite;
+        }
+
+        @keyframes discSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .pb-info {
+            min-width: 0;
+        }
+
+        .pb-track {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #fff;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .pb-sub {
+            font-size: 0.6rem;
+            color: rgba(255, 180, 255, 0.7);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .pb-btns {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .pb-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .pb-btn:hover {
+            background: rgba(255, 80, 255, 0.3);
+            border-color: rgba(255, 80, 255, 0.7);
+        }
+
+        .pb-vol {
+            -webkit-appearance: none;
+            width: 58px;
+            height: 3px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .pb-vol::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #ff80ff;
+            cursor: pointer;
+        }
+
+        /* ACTIVATION RIPPLE */
+        .activation-ripple {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 100vmax;
+            height: 100vmax;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 998;
+            opacity: 0;
+        }
+
+        .activation-ripple.burst {
+            animation: rippleBurst 0.9s cubic-bezier(0.1, 0, 0.6, 1) forwards;
+        }
+
+        @keyframes rippleBurst {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0.55;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(2.5);
+                opacity: 0;
+            }
+        }
+
+        /* ACTIVATING OVERLAY */
+        #activatingOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 997;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s;
+        }
+
+        #activatingOverlay.show {
+            background: rgba(0, 0, 0, 0.28);
+            pointer-events: all;
+        }
+
+        .activating-box {
+            background: rgba(8, 20, 50, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 18px;
+            padding: 22px 38px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            opacity: 0;
+            transform: scale(0.88);
+            transition: opacity 0.28s, transform 0.28s;
+            backdrop-filter: blur(20px);
+        }
+
+        #activatingOverlay.show .activating-box {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* BOTTOM NAV */
+        .page-nav {
+            position: sticky;
+            bottom: 0;
+            z-index: 100;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: clamp(10px, 2vw, 24px);
+            padding: clamp(12px, 1.8vw, 20px) clamp(16px, 4vw, 60px);
+            background: rgba(13, 28, 60, 0.88);
+            backdrop-filter: blur(16px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .nav-btn {
+            padding: clamp(12px, 1.8vw, 22px);
+            border: none;
+            border-radius: 15px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(0.8em, 1.3vw, 1.4em);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: clamp(1px, 0.3vw, 2px);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 1.2vw, 16px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            transition: width 0.5s, height 0.5s;
+            border-radius: 50%;
+        }
+
+        .nav-btn:hover::after {
+            width: 500px;
+            height: 500px;
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-4px) scale(1.02);
+        }
+
+        .nav-btn .iconify {
+            font-size: clamp(1.2em, 2vw, 2em);
+            transition: transform 0.4s;
+        }
+
+        .nav-btn:hover .iconify {
+            transform: scale(1.15) rotate(5deg);
+        }
+
+        .nav-btn.home {
+            background: linear-gradient(135deg, #1e5fbf, #2570d9);
+        }
+
+        .nav-btn.rooms {
+            background: linear-gradient(135deg, #00a000, #00c000);
+        }
+
+        /* TOAST */
+        #toast {
+            position: fixed;
+            top: clamp(55px, 9vh, 90px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-16px);
+            background: rgba(8, 22, 48, 0.93);
+            color: white;
+            padding: 10px 26px;
+            border-radius: 40px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(0.7em, 1.1vw, 0.95em);
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.32s, transform 0.32s;
+            white-space: nowrap;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #toast .toast-icon {
+            font-size: 1.25em;
+        }
+
+        @media (max-width: 680px) {
+            .scroll-nav {
+                display: none;
+            }
+
+            .scene-name {
+                font-size: clamp(1.8em, 9vw, 3em);
+            }
+
+            #partyBar {
+                bottom: 72px;
+            }
+
+            .pb-track {
+                max-width: 100px;
+            }
+
+            .scene-device-preview {
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="toast"><span class="toast-icon" id="toastIcon">✓</span><span id="toastMsg"></span></div>
+    <div class="activation-ripple" id="activationRipple"></div>
+
+    <div id="activatingOverlay">
+        <div class="activating-box">
+            <span class="iconify" data-icon="mdi:loading"
+                style="animation:spin 0.7s linear infinite;font-size:20px;color:#00ff88;"></span>
+            <span id="activatingText">ACTIVATING…</span>
+        </div>
+    </div>
+
+    <nav class="scroll-nav" id="scrollNav"></nav>
+
+    <div id="partyBar">
+        <div class="pb-disc" id="pbDisc"></div>
+        <div class="pb-info">
+            <div class="pb-track" id="pbTrack">Party Mix</div>
+            <div class="pb-sub">🎉 Now Playing</div>
+        </div>
+        <div class="pb-btns">
+            <button class="pb-btn" id="pbPrev"><span class="iconify" data-icon="mdi:skip-previous"></span></button>
+            <button class="pb-btn" id="pbPlay"><span class="iconify" data-icon="mdi:pause"></span></button>
+            <button class="pb-btn" id="pbNext"><span class="iconify" data-icon="mdi:skip-next"></span></button>
+            <input type="range" class="pb-vol" id="pbVol" min="0" max="1" step="0.05" value="0.8">
+        </div>
+        <button class="pb-btn" id="pbClose" style="margin-left:2px">✕</button>
+    </div>
+
+    <div id="scenesContainer">
+        <div class="loading"><span class="iconify" data-icon="mdi:loading"></span>LOADING SCENES...</div>
+    </div>
+
+    <nav class="page-nav">
+        <button class="nav-btn home" onclick="window.location.href='home_dashboard.html'"><span class="iconify"
+                data-icon="mdi:home"></span> Home</button>
+        <button class="nav-btn rooms" onclick="window.location.href='rooms.html'"><span class="iconify"
+                data-icon="mdi:bed"></span> Rooms</button>
+    </nav>
+
+    <audio id="partyAudio"></audio>
+
+    <script>
+        /* ══════════════════════════════ PARTY MUSIC ══════════════════════════════ */
+        const PM = {
+            audio: document.getElementById('partyAudio'),
+            folder: 'music/party/',
+            files: ['party1.mp3', 'party2.mp3', 'party3.mp3', 'party4.mp3', 'party5.mp3', 'track1.mp3', 'track2.mp3', 'track3.mp3', 'mix1.mp3', 'mix2.mp3', 'beat1.mp3', 'song1.mp3'],
+            playlist: [], tryIdx: 0, playIdx: 0, playing: false, eventsOn: false,
+            _wire() {
+                if (this.eventsOn) return; this.eventsOn = true;
+                this.audio.volume = parseFloat(document.getElementById('pbVol').value);
+                this.audio.addEventListener('play', () => { this.playing = true; document.getElementById('pbDisc').classList.add('spin'); document.getElementById('pbPlay').innerHTML = '<span class="iconify" data-icon="mdi:pause"></span>'; Iconify.scan(); });
+                this.audio.addEventListener('pause', () => { this.playing = false; document.getElementById('pbDisc').classList.remove('spin'); document.getElementById('pbPlay').innerHTML = '<span class="iconify" data-icon="mdi:play"></span>'; Iconify.scan(); });
+                this.audio.addEventListener('ended', () => { if (this.playlist.length > 0) { this.playIdx = (this.playIdx + 1) % this.playlist.length; this._load(this.playlist[this.playIdx]); this.audio.play().catch(() => { }); } else { this.audio.currentTime = 0; this.audio.play().catch(() => { }); } });
+                this.audio.addEventListener('error', () => { this.tryIdx++; if (this.tryIdx < this.files.length) { this.audio.src = this.folder + this.files[this.tryIdx]; this.audio.play().catch(() => { }); this._setName(this.files[this.tryIdx]); } else { document.getElementById('pbTrack').textContent = 'No files in music/party/'; } });
+            },
+            _load(url) { this.audio.src = url; this._setName(url.split('/').pop()); },
+            _setName(f) { const n = f.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '); document.getElementById('pbTrack').textContent = n.charAt(0).toUpperCase() + n.slice(1); },
+            startFromClick() {
+                this._wire();
+                if (this.playing) { document.getElementById('partyBar').classList.add('show'); return; }
+                if (this.playlist.length > 0) { this._load(this.playlist[this.playIdx]); this.audio.play().catch(() => { }); document.getElementById('partyBar').classList.add('show'); return; }
+                this.tryIdx = 0; this.audio.src = this.folder + this.files[0];
+                this.audio.play().catch(() => { });
+                this._setName(this.files[0]); document.getElementById('partyBar').classList.add('show');
+                this._scan();
+            },
+            async _scan() { const found = []; await Promise.allSettled(this.files.map(async f => { try { const r = await fetch(this.folder + f, { method: 'HEAD' }); if (r.ok) found.push(this.folder + f); } catch { } })); for (let i = found.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[found[i], found[j]] = [found[j], found[i]]; } this.playlist = found; const cur = this.audio.src; const idx = found.findIndex(u => cur.endsWith(u.replace(/^\.\//, ''))); this.playIdx = idx >= 0 ? idx : 0; },
+            toggle() { if (!this.eventsOn || !this.audio.src) return; this.playing ? this.audio.pause() : this.audio.play().catch(() => { }); },
+            next() { if (!this.playlist.length) return; this.playIdx = (this.playIdx + 1) % this.playlist.length; this._load(this.playlist[this.playIdx]); this.audio.play().catch(() => { }); },
+            prev() { if (!this.playlist.length) return; this.playIdx = (this.playIdx - 1 + this.playlist.length) % this.playlist.length; this._load(this.playlist[this.playIdx]); this.audio.play().catch(() => { }); },
+            stop() { this.audio.pause(); this.audio.removeAttribute('src'); this.playing = false; document.getElementById('partyBar').classList.remove('show'); document.getElementById('pbDisc').classList.remove('spin'); },
+            setVol(v) { this.audio.volume = parseFloat(v); }
+        };
+        document.getElementById('pbPlay').onclick = () => PM.toggle();
+        document.getElementById('pbNext').onclick = () => PM.next();
+        document.getElementById('pbPrev').onclick = () => PM.prev();
+        document.getElementById('pbVol').oninput = e => PM.setVol(e.target.value);
+        document.getElementById('pbClose').onclick = () => document.getElementById('partyBar').classList.remove('show');
+
+        /* ══════════════════════════════ APP STATE ══════════════════════════════ */
+        const API_BASE = 'http://localhost:8000/api';
+        let activeSceneId = null;
+        let toastTimer, pollInterval;
+        let scenes = [];
+        let isActivating = false;
+
+        function isParty(name) { return (name || '').toLowerCase().includes('party') && !(name || '').toLowerCase().includes('over'); }
+
+        /* Lookup helpers */
+        const EMOJIS = { 'Good Morning': '🌅', 'Morning Coffee': '☕', 'Happy Dinner': '🍽️', 'Good Night': '🌙', 'Party': '🎉', 'Party Over': '😴', 'Away Mode': '✈️' };
+        function getEmoji(name) { return EMOJIS[name] || '✅'; }
+
+        function getGradient(name) {
+            const g = { 'Good Morning': 'linear-gradient(to bottom,rgba(0,0,0,.38),rgba(0,0,0,.55))', 'Morning Coffee': 'linear-gradient(to bottom,rgba(30,15,0,.5),rgba(20,10,0,.65))', 'Happy Dinner': 'linear-gradient(to bottom,rgba(20,5,0,.45),rgba(15,5,0,.65))', 'Good Night': 'linear-gradient(to bottom,rgba(0,5,25,.5),rgba(0,5,20,.72))', 'Party': 'linear-gradient(to bottom,rgba(60,0,60,.45),rgba(40,0,50,.65))', 'Party Over': 'linear-gradient(to bottom,rgba(5,5,15,.52),rgba(5,5,15,.72))', 'Away Mode': 'linear-gradient(to bottom,rgba(0,20,40,.45),rgba(0,15,30,.65))' };
+            return g[name] || 'linear-gradient(to bottom,rgba(0,0,0,.4),rgba(0,0,0,.6))';
+        }
+        function getIconColor(name) { return { 'Good Morning': '#ffe97a', 'Morning Coffee': '#d4935a', 'Happy Dinner': '#ff9f5a', 'Good Night': '#aac4ff', 'Party': '#ff80ff', 'Party Over': '#8899cc', 'Away Mode': '#60d0ff' }[name] || '#fff'; }
+        function getIconBg(name) { return { 'Good Morning': 'radial-gradient(circle,rgba(255,200,60,.3),rgba(255,150,0,.1))', 'Morning Coffee': 'radial-gradient(circle,rgba(160,80,20,.35),rgba(100,50,10,.1))', 'Happy Dinner': 'radial-gradient(circle,rgba(220,80,20,.3),rgba(180,50,10,.1))', 'Good Night': 'radial-gradient(circle,rgba(80,100,220,.3),rgba(40,60,180,.1))', 'Party': 'radial-gradient(circle,rgba(200,50,200,.3),rgba(150,0,180,.1))', 'Party Over': 'radial-gradient(circle,rgba(60,80,140,.3),rgba(40,50,100,.1))', 'Away Mode': 'radial-gradient(circle,rgba(0,160,220,.3),rgba(0,100,180,.1))' }[name] || 'radial-gradient(circle,rgba(255,255,255,.2),rgba(255,255,255,.05))'; }
+        function getDefaultBg(name) { return { 'Good Morning': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&auto=format&fit=crop', 'Morning Coffee': 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=1600&auto=format&fit=crop', 'Happy Dinner': 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1600&auto=format&fit=crop', 'Good Night': 'https://images.unsplash.com/photo-1475274047050-1d0c0975864c?w=1600&auto=format&fit=crop', 'Party': 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1600&auto=format&fit=crop', 'Party Over': 'https://images.unsplash.com/photo-1534531173927-aeb928d54385?w=1600&auto=format&fit=crop', 'Away Mode': 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1600&auto=format&fit=crop' }[name] || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&auto=format&fit=crop'; }
+        function getAmbientClass(name) { const n = (name || '').toLowerCase(); if (n.includes('morning') && !n.includes('coffee')) return 'morning'; if (n.includes('coffee')) return 'coffee'; if (n.includes('dinner')) return 'dinner'; if (n.includes('night')) return 'night'; if (n.includes('party') && !n.includes('over')) return 'party'; if (n.includes('away')) return 'away'; return ''; }
+        function getRippleColor(name) { const n = (name || '').toLowerCase(); if (n.includes('morning') && !n.includes('coffee')) return 'rgba(255,200,60,0.35)'; if (n.includes('coffee')) return 'rgba(160,80,20,0.35)'; if (n.includes('dinner')) return 'rgba(200,80,20,0.35)'; if (n.includes('night')) return 'rgba(40,60,180,0.35)'; if (n.includes('party') && !n.includes('over')) return 'rgba(200,0,200,0.35)'; if (n.includes('away')) return 'rgba(0,160,220,0.35)'; return 'rgba(0,200,100,0.35)'; }
+
+        function deviceIcon(type, name) {
+            const t = (type || '').toLowerCase(), n = (name || '').toLowerCase();
+            if (t.includes('light') || n.includes('light')) return 'mdi:lightbulb';
+            if (t.includes('fan') || n.includes('fan')) return 'mdi:fan';
+            if (t.includes('ac') || n.includes('ac')) return 'mdi:air-conditioner';
+            if (t.includes('tv') || n.includes('tv')) return 'mdi:television';
+            if (t.includes('speaker') || n.includes('music')) return 'mdi:speaker';
+            if (t.includes('curtain') || n.includes('curtain')) return 'mdi:curtains';
+            if (t.includes('door') || n.includes('door')) return 'mdi:door';
+            if (t.includes('window') || n.includes('window')) return 'mdi:window-open';
+            if (t.includes('lock') || n.includes('lock')) return 'mdi:lock';
+            if (t.includes('alarm') || n.includes('alarm')) return 'mdi:alarm';
+            if (t.includes('socket') || n.includes('socket')) return 'mdi:power-socket';
+            return 'mdi:devices';
+        }
+
+        /* Toast */
+        function showToast(msg, icon) {
+            document.getElementById('toastMsg').textContent = msg;
+            document.getElementById('toastIcon').textContent = icon;
+            const t = document.getElementById('toast');
+            t.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+        }
+
+        /* Ripple */
+        function fireRipple(color) {
+            const r = document.getElementById('activationRipple');
+            r.style.background = `radial-gradient(circle,${color} 0%,transparent 65%)`;
+            r.classList.remove('burst'); void r.offsetWidth; r.classList.add('burst');
+        }
+
+        /* Update all visuals from activeSceneId */
+        function updateSceneVisuals() {
+            document.querySelectorAll('.scene-section').forEach(section => {
+                const sid = parseInt(section.getAttribute('data-scene-id'));
+                const isNow = sid === activeSceneId;
+                const btn = section.querySelector('.scene-activate');
+                const s = scenes.find(x => x.id === sid);
+                const sName = s ? s.name : '';
+
+                section.classList.toggle('is-active', isNow);
+
+                if (btn) {
+                    btn.classList.toggle('activated', isNow);
+                    btn.classList.toggle('party-active', isNow && isParty(sName));
+                    if (isNow) {
+                        btn.innerHTML = isParty(sName)
+                            ? '<span class="iconify" data-icon="mdi:music"></span> PARTY ACTIVE 🎉'
+                            : '<span class="iconify" data-icon="mdi:check-circle"></span> Active — Tap to Deactivate';
+                    } else {
+                        btn.innerHTML = '<span class="iconify" data-icon="mdi:play-circle-outline"></span> Activate Scene';
+                    }
+                }
+            });
+            Iconify.scan();
+        }
+
+        /* ══════════════════════════════ ACTIVATE ══════════════════════════════ */
+        async function activateScene(sceneId, sceneName) {
+            if (isActivating) return;
+
+            /* DEACTIVATE */
+            if (activeSceneId === sceneId) {
+                PM.stop(); // always stop music on deactivate regardless of scene type
+                isActivating = true;
+                try {
+                    await fetch(`${API_BASE}/scenes/${sceneId}/deactivate`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                    activeSceneId = null;
+                    updateSceneVisuals();
+                    showToast(sceneName + ' Deactivated', '⏸');
+                } catch (e) { showToast('Error deactivating', '⚠'); }
+                finally { isActivating = false; }
+                return;
+            }
+
+            /* If switching away from party scene, stop music immediately */
+            if (!isParty(sceneName) && PM.playing) PM.stop();
+
+            /* ACTIVATE — party music MUST start in sync click stack */
+            if (isParty(sceneName)) PM.startFromClick();
+
+            isActivating = true;
+            const overlay = document.getElementById('activatingOverlay');
+            document.getElementById('activatingText').textContent = `ACTIVATING ${sceneName.toUpperCase()}…`;
+            overlay.classList.add('show');
+
+            try {
+                const res = await fetch(`${API_BASE}/scenes/${sceneId}/activate`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+
+                activeSceneId = sceneId;
+                fireRipple(getRippleColor(sceneName));
+                updateSceneVisuals();
+
+                const cnt = data.devices_updated || 0;
+                showToast(`${sceneName} — ${cnt} device${cnt !== 1 ? 's' : ''} activated`, getEmoji(sceneName));
+
+                // ── Directly toggle each device to its target state ────
+                // The /activate API already updated the DB. Now we call
+                // /toggle on devices that need to change so ESP32s and
+                // rooms.html both see the change immediately.
+                const scene = scenes.find(s => s.id === sceneId);
+                if (scene && scene.devices && scene.devices.length) {
+                    activateDevicesCascade(scene.devices);
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Failed to activate scene', '⚠');
+                if (isParty(sceneName)) PM.stop();
+            } finally {
+                overlay.classList.remove('show');
+                isActivating = false;
+            }
+        }
+
+        /**
+         * activateDevicesCascade
+         * Called right after /activate succeeds.
+         * Fetches the current state of each device and only calls /toggle
+         * if the device is in the WRONG state for the scene.
+         * This ensures ESP32s receive the command AND rooms.html sees changes.
+         * Devices are staggered 150ms apart for a cascade feel.
+         */
+        async function activateDevicesCascade(sceneDevices) {
+            for (let i = 0; i < sceneDevices.length; i++) {
+                const d = sceneDevices[i];
+                setTimeout(async () => {
+                    try {
+                        const r = await fetch(`${API_BASE}/devices/${d.device_id}`);
+                        if (!r.ok) return;
+                        const dev = await r.json();
+                        const current = (dev.current_state || 'OFF').toUpperCase();
+                        const target = (d.action_state || 'OFF').toUpperCase();
+                        if (current !== target) {
+                            await fetch(`${API_BASE}/devices/${d.device_id}/toggle`, {
+                                method: 'PUT', headers: { 'Content-Type': 'application/json' }
+                            });
+                        }
+                    } catch (e) { console.warn('cascade toggle failed for device', d.device_id); }
+                }, i * 150);
+            }
+        }
+
+        /* ══════════════════════════════ FETCH ══════════════════════════════ */
+        async function fetchScenes() {
+            try { const r = await fetch(`${API_BASE}/scenes`); if (!r.ok) throw new Error(); return r.json(); }
+            catch { return []; }
+        }
+
+        /* ══════════════════════════════ RENDER ══════════════════════════════ */
+        function renderScenes(data) {
+            const container = document.getElementById('scenesContainer');
+            const nav = document.getElementById('scrollNav');
+
+            if (!data || !data.length) {
+                container.innerHTML = '<div style="color:white;text-align:center;padding:50px;font-family:Orbitron,sans-serif;letter-spacing:3px">NO SCENES FOUND<br><small style="opacity:.5;font-size:.7em">Add scenes via the API</small></div>';
+                return;
+            }
+            scenes = data;
+            container.innerHTML = ''; nav.innerHTML = '';
+
+            const active = data.find(s => s.is_enabled === true);
+            if (active) activeSceneId = active.id;
+
+            data.forEach((scene, idx) => {
+                const section = document.createElement('section');
+                section.className = 'scene-section' + (activeSceneId === scene.id ? ' is-active' : '');
+                section.id = `scene-${scene.id}`;
+                section.setAttribute('data-scene', scene.name);
+                section.setAttribute('data-scene-id', scene.id);
+
+                /* BG */
+                const bg = document.createElement('div'); bg.className = 'scene-bg';
+                bg.style.backgroundImage = `url('${scene.bg_image || getDefaultBg(scene.name)}')`;
+
+                /* Overlay */
+                const ov = document.createElement('div'); ov.className = 'scene-overlay';
+                ov.style.background = getGradient(scene.name);
+
+                /* Ambient */
+                const amb = document.createElement('div');
+                const ac = getAmbientClass(scene.name);
+                amb.className = `scene-ambient${ac ? ' ' + ac : ''}`;
+
+                /* Active badge */
+                const badge = document.createElement('div'); badge.className = 'active-scene-badge';
+                badge.innerHTML = '<div class="active-dot"></div>SCENE ACTIVE';
+
+                /* Scene # */
+                const num = document.createElement('div'); num.className = 'scene-num';
+                num.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(data.length).padStart(2, '0')}`;
+
+                /* Music badge */
+                if (isParty(scene.name)) {
+                    const mb = document.createElement('div'); mb.className = 'music-badge';
+                    mb.innerHTML = '<span class="iconify" data-icon="mdi:music-note"></span> Party Music';
+                    section.appendChild(mb);
+                }
+
+                /* Device count */
+                const devCount = (scene.devices || []).length;
+                const dcEl = document.createElement('div'); dcEl.className = 'scene-device-count';
+                dcEl.innerHTML = `<span class="iconify" data-icon="mdi:devices"></span>${devCount} device${devCount !== 1 ? 's' : ''}`;
+
+                /* Content */
+                const content = document.createElement('div'); content.className = 'scene-content';
+
+                const iconWrap = document.createElement('div'); iconWrap.className = 'scene-icon-wrap';
+                iconWrap.style.background = getIconBg(scene.name);
+                iconWrap.innerHTML = `<span class="iconify" data-icon="${scene.icon || 'mdi:play-circle'}" style="color:${getIconColor(scene.name)}"></span>`;
+
+                const h1 = document.createElement('h1'); h1.className = 'scene-name'; h1.textContent = scene.name;
+
+                const tag = document.createElement('div'); tag.className = 'scene-tagline';
+                tag.textContent = scene.description || 'Smart Scene';
+
+                /* Device pills */
+                const pillsWrap = document.createElement('div'); pillsWrap.className = 'scene-device-preview';
+                if (scene.devices && scene.devices.length > 0) {
+                    scene.devices.slice(0, 7).forEach(d => {
+                        const pill = document.createElement('div');
+                        const sc = d.action_state === 'ON' ? 'on' : 'off';
+                        pill.className = `device-pill ${sc}`;
+                        pill.setAttribute('data-state', d.action_state);
+                        pill.title = `${d.name} will be turned ${d.action_state}`;
+                        pill.innerHTML = `<span class="iconify" data-icon="${d.icon || deviceIcon(d.type, d.name)}"></span>${d.name}<span class="pill-state">${d.action_state}</span>`;
+                        pillsWrap.appendChild(pill);
+                    });
+                    if (scene.devices.length > 7) {
+                        const more = document.createElement('div'); more.className = 'device-pill off';
+                        more.textContent = `+${scene.devices.length - 7} more`;
+                        pillsWrap.appendChild(more);
+                    }
+                } else {
+                    const empty = document.createElement('div'); empty.className = 'device-pill off';
+                    empty.innerHTML = '<span class="iconify" data-icon="mdi:link-off"></span>No devices linked';
+                    pillsWrap.appendChild(empty);
+                }
+
+                /* Button */
+                const btn = document.createElement('button'); btn.className = 'scene-activate';
+                if (activeSceneId === scene.id) {
+                    btn.classList.add('activated');
+                    if (isParty(scene.name)) { btn.classList.add('party-active'); btn.innerHTML = '<span class="iconify" data-icon="mdi:music"></span> PARTY ACTIVE 🎉'; }
+                    else { btn.innerHTML = '<span class="iconify" data-icon="mdi:check-circle"></span> Active — Tap to Deactivate'; }
+                } else {
+                    btn.innerHTML = '<span class="iconify" data-icon="mdi:play-circle-outline"></span> Activate Scene';
+                }
+                btn.onclick = function (e) { e.stopPropagation(); activateScene(scene.id, scene.name); };
+
+                content.appendChild(iconWrap); content.appendChild(h1); content.appendChild(tag);
+                content.appendChild(pillsWrap); content.appendChild(btn);
+
+                section.appendChild(bg); section.appendChild(ov); section.appendChild(amb);
+                section.appendChild(badge); section.appendChild(num);
+                section.appendChild(content); section.appendChild(dcEl);
+                container.appendChild(section);
+
+                if (idx < data.length - 1) { const d = document.createElement('div'); d.className = 'scene-divider'; container.appendChild(d); }
+
+                /* Scroll dot */
+                const dotWrap = document.createElement('div'); dotWrap.className = 'scroll-dot-wrap';
+                const dot = document.createElement('div'); dot.className = 'scroll-dot' + (idx === 0 ? ' active' : '');
+                dot.onclick = () => section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const lbl = document.createElement('span'); lbl.className = 'scroll-dot-label'; lbl.textContent = scene.name;
+                dotWrap.appendChild(dot); dotWrap.appendChild(lbl); nav.appendChild(dotWrap);
+            });
+
+            /* Intersection observer */
+            const secs = document.querySelectorAll('.scene-section');
+            new IntersectionObserver(entries => { entries.forEach(e => { if (e.isIntersecting && e.intersectionRatio > 0.4) { const i = Array.from(secs).indexOf(e.target); document.querySelectorAll('.scroll-dot').forEach((d, j) => d.classList.toggle('active', j === i)); } }); }, { threshold: 0.4 }).observe ? null : null;
+            const obs = new IntersectionObserver(entries => { entries.forEach(e => { if (e.isIntersecting && e.intersectionRatio > 0.4) { const i = Array.from(secs).indexOf(e.target); document.querySelectorAll('.scroll-dot').forEach((d, j) => d.classList.toggle('active', j === i)); } }); }, { threshold: 0.4 });
+            secs.forEach(s => obs.observe(s));
+
+            Iconify.scan();
+        }
+
+        /* ══════════════════════════════ POLLING ══════════════════════════════ */
+        async function pollSceneState() {
+            try {
+                const data = await fetchScenes();
+                const active = data.find(s => s.is_enabled === true);
+                const newId = active ? active.id : null;
+                if (newId !== activeSceneId) {
+                    activeSceneId = newId;
+                    data.forEach(s => { const ex = scenes.find(x => x.id === s.id); if (ex) { ex.is_enabled = s.is_enabled; } });
+                    updateSceneVisuals();
+                }
+            } catch { }
+        }
+
+        /* ══════════════════════════════ INIT ══════════════════════════════ */
+        document.addEventListener('DOMContentLoaded', async () => {
+            const data = await fetchScenes();
+            renderScenes(data);
+            pollInterval = setInterval(pollSceneState, 3000);
+        });
+        window.addEventListener('beforeunload', () => { if (pollInterval) clearInterval(pollInterval); });
+    </script>
+</body>
+
+</html>
