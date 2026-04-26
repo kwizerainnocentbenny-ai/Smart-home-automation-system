@@ -1,0 +1,480 @@
+/*
+ * Smart Home - Bedroom ESP32 Node
+ * MANUAL CONTROL ONLY - No automatic actions
+ * 
+ * Controls (Manual only via web):
+ * - Bed Light (GPIO2) - Relay
+ * - Bed Alarm (GPIO4) - Relay/Buzzer
+ * - AC (GPIO5) - Relay
+ * - Bed Curtains (GPIO19) - Servo
+ * 
+ * Sensors (Reporting only - web handles alerts):
+ * - Temperature Sensor (GPIO32) - DHT22
+ * 
+ * WiFi: KWIZERA / Kinno@123
+ * Backend: http://192.168.137.1:8000/api
+ * Room ID: 4 (Bedroom)
+ * 
+ * Device IDs:
+ * - Bed Light: 4 (Controllable - Relay)
+ * - Bed Alarm: 5 (Controllable - Relay/Buzzer)
+ * - AC: 6 (Controllable - Relay)
+ * - Temperature Sensor: 8 (Sensor - DHT22)
+ * - Bed Curtains: 10 (Controllable - Servo)
+ */
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
+#include <ESP32Servo.h>
+
+// ==================== WiFi Configuration ====================
+const char* ssid = "KWIZERA";
+const char* password = "Kinno@123";
+const char* serverUrl = "http://192.168.137.1:8000/api";
+const int ROOM_ID = 4;  // Bedroom
+
+// ==================== Pin Definitions ====================
+#define RELAY_BED_LIGHT_PIN 2
+#define RELAY_ALARM_PIN 4
+#define RELAY_AC_PIN 5
+#define SERVO_CURTAIN_PIN 19
+#define DHTPIN 32
+#define DHTTYPE DHT22
+
+// ==================== Device IDs ====================
+const int BED_LIGHT_ID = 4;
+const int ALARM_ID = 5;
+const int AC_ID = 6;
+const int TEMP_SENSOR_ID = 8;
+const int CURTAIN_ID = 10;
+
+// ==================== TIMING ====================
+const long POLL_INTERVAL = 300;      // 300ms for responsive control
+const long SENSOR_INTERVAL = 3000;   // 3 seconds for sensor updates
+const int WIFI_MAX_ATTEMPTS = 20;
+
+// ==================== Relay Logic ====================
+const bool RELAY_ACTIVE_LOW = false;   // false = HIGH turns relay ON
+
+// ==================== Servo Positions for Curtains ====================
+const int CURTAIN_ANGLE_CLOSED = 0;    // Curtains closed
+const int CURTAIN_ANGLE_OPEN = 90;     // Curtains open
+
+// ==================== FIX: Servo Management ====================
+bool servoMoving = false;
+unsigned long servoMoveStartTime = 0;
+const int SERVO_MOVE_DURATION = 300;  // Time to allow servo to move (ms)
+
+// ==================== Alarm/Buzzer Management ====================
+bool alarmActive = false;
+unsigned long alarmStartTime = 0;
+const int ALARM_DURATION = 5000;  // Alarm sounds for 5 seconds when triggered
+
+// ==================== Global Objects ====================
+WiFiClient wifiClient;
+HTTPClient http;
+DHT dht(DHTPIN, DHTTYPE);
+Servo curtainServo;
+
+// Device states
+bool bedLightState = false;
+bool alarmState = false;
+bool acState = false;
+bool curtainState = false;  // false = closed, true = open
+
+// Target states (for servo)
+bool targetCurtainState = false;
+
+// Current sensor values
+float lastTemperature = -1;
+float lastHumidity = -1;
+
+// Timing variables
+unsigned long lastPoll = 0;
+unsigned long lastSensorRead = 0;
+unsigned long lastWiFiCheck = 0;
+
+// ==================== Function Prototypes ====================
+void printHeader();
+void initPins();
+bool connectToWiFi();
+void checkWiFi();
+void pollDeviceStates();
+void parseDevices(String payload);
+void controlDevice(int deviceId, String command);
+void setRelay(int pin, bool state);
+void setAlarm(bool state);
+void setCurtains(bool state);
+void updateServo();
+void updateAlarm();
+void readAndSendSensors();
+void sendSensorData(int sensorId, String value);
+void printSystemInfo();
+
+// ==================== Setup ====================
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  printHeader();
+  initPins();
+  
+  // Initialize DHT22 sensor
+  dht.begin();
+  Serial.println("  ✓ DHT22 Temperature Sensor initialized");
+  
+  // Configure WiFi for stability
+  WiFi.setSleep(true);
+  WiFi.setTxPower(WIFI_POWER_13dBm);
+  
+  if (connectToWiFi()) {
+    printSystemInfo();
+  }
+  
+  // Configure HTTP client
+  http.setTimeout(1000);
+  http.setReuse(true);
+  
+  Serial.println("\n✅ Setup complete! Manual control only - Web handles alerts\n");
+  delay(100);
+}
+
+// ==================== Main Loop ====================
+void loop() {
+  unsigned long now = millis();
+  
+  // Update servo state (non-blocking)
+  updateServo();
+  
+  // Update alarm state (non-blocking)
+  updateAlarm();
+  
+  // Quick WiFi check
+  if (now - lastWiFiCheck >= 30000) {
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("❌ WiFi disconnected! Reconnecting...");
+      WiFi.reconnect();
+    }
+    lastWiFiCheck = now;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    // Poll for web commands
+    if (now - lastPoll >= POLL_INTERVAL) {
+      pollDeviceStates();
+      lastPoll = now;
+    }
+    
+    // Send sensor data
+    if (now - lastSensorRead >= SENSOR_INTERVAL) {
+      readAndSendSensors();
+      lastSensorRead = now;
+    }
+  }
+  
+  delay(10);
+}
+
+// ==================== Print Header ====================
+void printHeader() {
+  Serial.println("\n\n╔══════════════════════════════════════════╗");
+  Serial.println("║      SMART HOME - BEDROOM NODE v1.0    ║");
+  Serial.println("║          MANUAL CONTROL ONLY           ║");
+  Serial.println("╠══════════════════════════════════════════╣");
+  Serial.println("║  Bed Light: GPIO2 (Relay)               ║");
+  Serial.println("║  Alarm: GPIO4 (Relay/Buzzer)            ║");
+  Serial.println("║  AC: GPIO5 (Relay)                      ║");
+  Serial.println("║  Curtains: GPIO19 (Servo)               ║");
+  Serial.println("║  Temperature: GPIO32 (DHT22)            ║");
+  Serial.println("║  POLLING: 300ms | SENSOR: 3s            ║");
+  Serial.println("║  DEVICE IDs: 4,5,6,8,10                 ║");
+  Serial.println("╚══════════════════════════════════════════╝");
+  Serial.println();
+}
+
+// ==================== Initialize Pins ====================
+void initPins() {
+  Serial.println("\n📌 Initializing bedroom pins...");
+  
+  pinMode(RELAY_BED_LIGHT_PIN, OUTPUT);
+  pinMode(RELAY_ALARM_PIN, OUTPUT);
+  pinMode(RELAY_AC_PIN, OUTPUT);
+  
+  // Initialize curtain servo
+  curtainServo.attach(SERVO_CURTAIN_PIN);
+  curtainServo.write(CURTAIN_ANGLE_CLOSED);  // Start closed
+  delay(100);
+  curtainServo.detach();  // DETACH to save resources
+  Serial.println("  ✓ Curtain servo initialized (CLOSED) - DETACHED");
+  
+  // Start with all relays OFF
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(RELAY_BED_LIGHT_PIN, HIGH);
+    digitalWrite(RELAY_ALARM_PIN, HIGH);
+    digitalWrite(RELAY_AC_PIN, HIGH);
+    Serial.println("  ✓ Relays initialized (OFF) - Active LOW");
+  } else {
+    digitalWrite(RELAY_BED_LIGHT_PIN, LOW);
+    digitalWrite(RELAY_ALARM_PIN, LOW);
+    digitalWrite(RELAY_AC_PIN, LOW);
+    Serial.println("  ✓ Relays initialized (OFF) - Active HIGH");
+  }
+  
+  Serial.println();
+}
+
+// ==================== Connect to WiFi ====================
+bool connectToWiFi() {
+  Serial.print("📡 Connecting to WiFi: ");
+  Serial.println(ssid);
+  
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(true);
+  WiFi.setTxPower(WIFI_POWER_13dBm);
+  WiFi.begin(ssid, password);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < WIFI_MAX_ATTEMPTS) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi Connected!");
+    return true;
+  } else {
+    Serial.println("\n❌ WiFi Connection Failed!");
+    return false;
+  }
+}
+
+// ==================== Print System Info ====================
+void printSystemInfo() {
+  Serial.println("\n📊 System Information:");
+  Serial.printf("   IP Address: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("   MAC Address: %s\n", WiFi.macAddress().c_str());
+  Serial.printf("   RSSI: %d dBm\n", WiFi.RSSI());
+  Serial.printf("   Free Heap: %d bytes\n", ESP.getFreeHeap());
+  Serial.println();
+}
+
+// ==================== Poll Device States ====================
+void pollDeviceStates() {
+  String url = String(serverUrl) + "/devices/room/" + String(ROOM_ID);
+  
+  http.begin(wifiClient, url);
+  http.setTimeout(500);
+  
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    parseDevices(payload);
+  }
+  
+  http.end();
+}
+
+// ==================== Parse Devices JSON ====================
+void parseDevices(String payload) {
+  StaticJsonDocument<2048> doc;
+  DeserializationError error = deserializeJson(doc, payload);
+  
+  if (error) {
+    return;
+  }
+  
+  JsonArray devices = doc.as<JsonArray>();
+  
+  for (JsonVariant device : devices) {
+    int id = device["id"];
+    const char* state = device["current_state"];
+    bool isSensor = device["is_sensor"];
+    
+    // Control only non-sensor devices
+    if (!isSensor && state != nullptr) {
+      controlDevice(id, String(state));
+    }
+  }
+}
+
+// ==================== Control Device ====================
+void controlDevice(int deviceId, String command) {
+  bool newState = (command == "ON");
+  
+  switch(deviceId) {
+    case BED_LIGHT_ID:
+      if (bedLightState != newState) {
+        setRelay(RELAY_BED_LIGHT_PIN, newState);
+        bedLightState = newState;
+        Serial.printf("💡 Bed Light: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case ALARM_ID:
+      if (alarmState != newState) {
+        setAlarm(newState);
+        alarmState = newState;
+        Serial.printf("🔔 Bed Alarm: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case AC_ID:
+      if (acState != newState) {
+        setRelay(RELAY_AC_PIN, newState);
+        acState = newState;
+        Serial.printf("❄️ AC: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case CURTAIN_ID:
+      if (curtainState != newState) {
+        targetCurtainState = newState;
+        curtainState = newState;
+        Serial.printf("🪟 Curtains: %s command received\n", newState ? "OPEN" : "CLOSE");
+      }
+      break;
+  }
+}
+
+// ==================== Set Relay ====================
+void setRelay(int pin, bool state) {
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(pin, state ? LOW : HIGH);
+  } else {
+    digitalWrite(pin, state ? HIGH : LOW);
+  }
+}
+
+// ==================== Set Alarm (with duration) ====================
+void setAlarm(bool state) {
+  if (state) {
+    // Turn alarm ON
+    setRelay(RELAY_ALARM_PIN, true);
+    alarmActive = true;
+    alarmStartTime = millis();
+    Serial.println("  Alarm sounding for 5 seconds");
+  } else {
+    // Turn alarm OFF immediately
+    setRelay(RELAY_ALARM_PIN, false);
+    alarmActive = false;
+  }
+}
+
+// ==================== Update Alarm State ====================
+void updateAlarm() {
+  // Auto-turn off alarm after duration
+  if (alarmActive && (millis() - alarmStartTime >= ALARM_DURATION)) {
+    setRelay(RELAY_ALARM_PIN, false);
+    alarmActive = false;
+    alarmState = false;
+    Serial.println("  Alarm auto turned off after 5 seconds");
+  }
+}
+
+// ==================== Set Curtains Servo ====================
+void setCurtains(bool state) {
+  targetCurtainState = state;
+  
+  if (!servoMoving) {
+    curtainServo.attach(SERVO_CURTAIN_PIN);
+    servoMoving = true;
+    servoMoveStartTime = millis();
+    
+    if (state) {
+      curtainServo.write(CURTAIN_ANGLE_OPEN);
+      Serial.println("  Curtains opening...");
+    } else {
+      curtainServo.write(CURTAIN_ANGLE_CLOSED);
+      Serial.println("  Curtains closing...");
+    }
+  }
+}
+
+// ==================== Update Servo State ====================
+void updateServo() {
+  if (servoMoving) {
+    if (millis() - servoMoveStartTime >= SERVO_MOVE_DURATION) {
+      curtainServo.detach();
+      servoMoving = false;
+      Serial.println("  Curtain movement complete - DETACHED");
+    }
+  }
+  
+  // Check if we need to start a new servo movement
+  if (!servoMoving && (curtainState != targetCurtainState)) {
+    curtainState = targetCurtainState;
+    setCurtains(curtainState);
+  }
+}
+
+// ==================== Read and Send Sensors ====================
+void readAndSendSensors() {
+  // Skip sensor reading if servo is moving
+  if (servoMoving) {
+    return;
+  }
+  
+  // Read DHT22 sensor
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+  
+  // Check if any reads failed
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("❌ Failed to read from DHT22 sensor!");
+    return;
+  }
+  
+  // Only send if temperature changed significantly (>0.5°C)
+  if (abs(temperature - lastTemperature) > 0.5) {
+    // Format temperature with unit
+    char tempStr[20];
+    snprintf(tempStr, sizeof(tempStr), "%.1f°C", temperature);
+    
+    sendSensorData(TEMP_SENSOR_ID, String(tempStr));
+    
+    // Determine if temperature is high/low for visual feedback
+    if (temperature > 30) {
+      Serial.printf("🌡️ Temperature: %.1f°C [HIGH] - Sent\n", temperature);
+    } else if (temperature < 18) {
+      Serial.printf("🌡️ Temperature: %.1f°C [LOW] - Sent\n", temperature);
+    } else {
+      Serial.printf("🌡️ Temperature: %.1f°C [NORMAL] - Sent\n", temperature);
+    }
+    
+    lastTemperature = temperature;
+    lastHumidity = humidity;
+  }
+}
+
+// ==================== Send Sensor Data to Backend ====================
+void sendSensorData(int sensorId, String value) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  
+  String url = String(serverUrl) + "/devices/" + String(sensorId) + "/sensor";
+  
+  http.begin(wifiClient, url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(300);
+  
+  StaticJsonDocument<200> doc;
+  doc["sensor_value"] = value;
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  int httpCode = http.PUT(jsonString);
+  
+  if (httpCode != 200 && httpCode != 201) {
+    static int failCount = 0;
+    failCount++;
+    if (failCount % 10 == 0) {
+      Serial.printf("❌ Sensor %d update failed: HTTP %d\n", sensorId, httpCode);
+    }
+  }
+  
+  http.end();
+}
