@@ -1,0 +1,585 @@
+/*
+ * Smart Home - Kids Room ESP32 Node
+ * MANUAL CONTROL ONLY - No automatic actions
+ * 
+ * Controls (Manual only via web):
+ * - Night Light (GPIO2) - Relay
+ * - Smart TV (GPIO4) - Relay + I2C LCD (16x2)
+ * - Music System (GPIO5) - Relay
+ * - Smart Windows (GPIO18) - Servo
+ * - Door (GPIO19) - Servo
+ * - Curtains (GPIO21) - Servo
+ * 
+ * Sensors (Reporting only - web handles alerts):
+ * - Temperature Sensor (GPIO32) - DHT22
+ * 
+ * Display:
+ * - I2C LCD 16x2 connected via SDA (GPIO21), SCL (GPIO22)
+ * - Shows "SAMSUNG" when TV is ON, blank when OFF
+ * 
+ * WiFi: KWIZERA / Kinno@123
+ * Backend: http://192.168.137.1:8000/api
+ * Room ID: 6 (Kids Room)
+ * 
+ * Device IDs:
+ * - Night Light: 28 (Controllable - Relay)
+ * - Smart TV: 29 (Controllable - Relay + LCD)
+ * - Music: 30 (Controllable - Relay)
+ * - Smart Windows: 31 (Controllable - Servo)
+ * - Door: 32 (Controllable - Servo)
+ * - Curtains: 33 (Controllable - Servo)
+ * - Temperature Sensor: 34 (Sensor - DHT22)
+ */
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
+#include <ESP32Servo.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// ==================== WiFi Configuration ====================
+const char* ssid = "KWIZERA";
+const char* password = "Kinno@123";
+const char* serverUrl = "http://192.168.137.1:8000/api";
+const int ROOM_ID = 6;  // Kids Room
+
+// ==================== Pin Definitions ====================
+#define RELAY_NIGHT_LIGHT_PIN 2
+#define RELAY_TV_PIN          4
+#define RELAY_MUSIC_PIN       5
+#define SERVO_WINDOW_PIN      18
+#define SERVO_DOOR_PIN        19
+#define SERVO_CURTAIN_PIN     13
+#define DHTPIN                32
+#define DHTTYPE               DHT22
+
+// I2C pins for LCD
+#define I2C_SDA               21
+#define I2C_SCL               22
+
+// ==================== Device IDs ====================
+const int NIGHT_LIGHT_ID = 28;
+const int TV_ID          = 29;
+const int MUSIC_ID       = 30;
+const int WINDOW_ID      = 31;
+const int DOOR_ID        = 32;
+const int CURTAIN_ID     = 33;
+const int TEMP_SENSOR_ID = 34;
+
+// ==================== TIMING ====================
+const long POLL_INTERVAL   = 300;    // 300ms for responsive control
+const long SENSOR_INTERVAL = 3000;   // 3 seconds for sensor updates
+const int  WIFI_MAX_ATTEMPTS = 20;
+const unsigned long WIFI_CHECK_INTERVAL = 30000; // 30 seconds
+
+// ==================== Relay Logic ====================
+const bool RELAY_ACTIVE_LOW = false;  // false = HIGH turns relay ON
+
+// ==================== Servo Positions ====================
+const int WINDOW_ANGLE_CLOSED  = 0;
+const int WINDOW_ANGLE_OPEN    = 90;
+const int DOOR_ANGLE_CLOSED    = 0;
+const int DOOR_ANGLE_OPEN      = 90;
+const int CURTAIN_ANGLE_CLOSED = 0;
+const int CURTAIN_ANGLE_OPEN   = 90;
+
+// ==================== Servo Management ====================
+struct ServoControl {
+  bool          isMoving;
+  bool          currentState;
+  bool          targetState;
+  unsigned long moveStartTime;
+  Servo         servo;
+  int           pin;
+  int           angleOff;
+  int           angleOn;
+  const char*   name;
+};
+
+ServoControl windowServo  = {false, false, false, 0, Servo(), SERVO_WINDOW_PIN,  WINDOW_ANGLE_CLOSED,  WINDOW_ANGLE_OPEN,  "Window"};
+ServoControl doorServo    = {false, false, false, 0, Servo(), SERVO_DOOR_PIN,    DOOR_ANGLE_CLOSED,    DOOR_ANGLE_OPEN,    "Door"};
+ServoControl curtainServo = {false, false, false, 0, Servo(), SERVO_CURTAIN_PIN, CURTAIN_ANGLE_CLOSED, CURTAIN_ANGLE_OPEN, "Curtain"};
+
+const int SERVO_MOVE_DURATION = 500;  // ms to allow servo to complete movement
+
+// ==================== Global Objects ====================
+WiFiClient wifiClient;
+HTTPClient http;
+DHT dht(DHTPIN, DHTTYPE);
+
+// LCD Display (16x2 with I2C)
+// Common I2C addresses: 0x27 or 0x3F
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Device states
+bool nightLightState = false;
+bool tvState         = false;
+bool musicState      = false;
+
+// Current sensor values
+float lastTemperature = -999;
+float lastHumidity    = -999;
+
+// Timing variables
+unsigned long lastPoll      = 0;
+unsigned long lastSensorRead = 0;
+unsigned long lastWiFiCheck = 0;
+
+// ==================== Function Prototypes ====================
+void printHeader();
+void initPins();
+bool connectToWiFi();
+void checkWiFiConnection();
+void pollDeviceStates();
+void parseDevices(String payload);
+void controlDevice(int deviceId, String command);
+void setRelay(int pin, bool state);
+void setServo(ServoControl &sc, bool state);
+void updateAllServos();
+void readAndSendSensors();
+void sendSensorData(int sensorId, String value);
+void printSystemInfo();
+void updateTVDisplay(bool state);
+
+// ==================== Setup ====================
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  printHeader();
+  initPins();
+
+  // Initialize I2C and LCD
+  Wire.begin(I2C_SDA, I2C_SCL);
+  delay(100);  // Give I2C time to initialize
+  
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("SAMSUNG");
+  lcd.setCursor(4, 1);
+  lcd.print("Smart TV");
+  delay(2000);
+  lcd.clear();
+  lcd.noBacklight();  // Start with TV OFF
+  Serial.println("  ✓ LCD Display initialized (I2C)");
+
+  dht.begin();
+  Serial.println("  ✓ DHT22 Temperature Sensor initialized");
+
+  WiFi.setSleep(true);
+  WiFi.setTxPower(WIFI_POWER_13dBm);
+
+  if (connectToWiFi()) {
+    printSystemInfo();
+  }
+
+  http.setTimeout(1000);
+  http.setReuse(true);
+
+  Serial.println("\n✅ Setup complete! Manual control only - Web handles alerts\n");
+  delay(100);
+}
+
+// ==================== Main Loop ====================
+void loop() {
+  unsigned long now = millis();
+
+  // Always update servos first (non-blocking movement handler)
+  updateAllServos();
+
+  // Check WiFi connection periodically
+  checkWiFiConnection();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    // Poll device states from backend
+    if (now - lastPoll >= POLL_INTERVAL) {
+      pollDeviceStates();
+      lastPoll = now;
+    }
+
+    // Read and send sensor data
+    if (now - lastSensorRead >= SENSOR_INTERVAL) {
+      readAndSendSensors();
+      lastSensorRead = now;
+    }
+  }
+
+  delay(10);
+}
+
+// ==================== Check WiFi Connection ====================
+void checkWiFiConnection() {
+  unsigned long now = millis();
+  
+  if (now - lastWiFiCheck >= WIFI_CHECK_INTERVAL) {
+    lastWiFiCheck = now;
+    
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("❌ WiFi disconnected! Reconnecting...");
+      WiFi.disconnect();
+      WiFi.reconnect();
+    }
+  }
+}
+
+// ==================== Update TV Display ====================
+void updateTVDisplay(bool state) {
+  if (state) {
+    // TV ON - Show SAMSUNG logo
+    lcd.backlight();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("SAMSUNG");
+    lcd.setCursor(2, 1);
+    lcd.print("Smart TV");
+    Serial.println("  📺 LCD: SAMSUNG logo displayed");
+  } else {
+    // TV OFF - Turn off display
+    lcd.clear();
+    lcd.noBacklight();
+    Serial.println("  📺 LCD: Display OFF");
+  }
+}
+
+// ==================== Print Header ====================
+void printHeader() {
+  Serial.println("\n\n╔══════════════════════════════════════════╗");
+  Serial.println("║      SMART HOME - KIDS ROOM v1.1         ║");
+  Serial.println("║          MANUAL CONTROL ONLY             ║");
+  Serial.println("╠══════════════════════════════════════════╣");
+  Serial.println("║  Night Light : GPIO2  (Relay)  ID=28     ║");
+  Serial.println("║  Smart TV    : GPIO4  (Relay+LCD) ID=29  ║");
+  Serial.println("║  Music       : GPIO5  (Relay)  ID=30     ║");
+  Serial.println("║  Windows     : GPIO18 (Servo)  ID=31     ║");
+  Serial.println("║  Door        : GPIO19 (Servo)  ID=32     ║");
+  Serial.println("║  Curtains    : GPIO21 (Servo)  ID=33     ║");
+  Serial.println("║  Temperature : GPIO32 (DHT22)  ID=34     ║");
+  Serial.println("║  LCD Display : I2C (SDA=21, SCL=22)      ║");
+  Serial.println("╚══════════════════════════════════════════╝");
+  Serial.println();
+}
+
+// ==================== Initialize Pins ====================
+void initPins() {
+  Serial.println("\n📌 Initializing kids room pins...");
+
+  // Relay pins
+  pinMode(RELAY_NIGHT_LIGHT_PIN, OUTPUT);
+  pinMode(RELAY_TV_PIN, OUTPUT);
+  pinMode(RELAY_MUSIC_PIN, OUTPUT);
+
+  // Initialize relays OFF
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(RELAY_NIGHT_LIGHT_PIN, HIGH);
+    digitalWrite(RELAY_TV_PIN, HIGH);
+    digitalWrite(RELAY_MUSIC_PIN, HIGH);
+    Serial.println("  ✓ Relays initialized (OFF) - Active LOW");
+  } else {
+    digitalWrite(RELAY_NIGHT_LIGHT_PIN, LOW);
+    digitalWrite(RELAY_TV_PIN, LOW);
+    digitalWrite(RELAY_MUSIC_PIN, LOW);
+    Serial.println("  ✓ Relays initialized (OFF) - Active HIGH");
+  }
+
+  // Initialize servos to CLOSED position then detach
+  windowServo.servo.attach(windowServo.pin);
+  windowServo.servo.write(windowServo.angleOff);
+  delay(300);
+  windowServo.servo.detach();
+
+  doorServo.servo.attach(doorServo.pin);
+  doorServo.servo.write(doorServo.angleOff);
+  delay(300);
+  doorServo.servo.detach();
+
+  curtainServo.servo.attach(curtainServo.pin);
+  curtainServo.servo.write(curtainServo.angleOff);
+  delay(300);
+  curtainServo.servo.detach();
+
+  Serial.println("  ✓ All servos initialized (CLOSED) - DETACHED");
+  Serial.println();
+}
+
+// ==================== Connect to WiFi ====================
+bool connectToWiFi() {
+  Serial.print("📡 Connecting to WiFi: ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(true);
+  WiFi.setTxPower(WIFI_POWER_13dBm);
+  WiFi.begin(ssid, password);
+
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < WIFI_MAX_ATTEMPTS) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi Connected!");
+    return true;
+  } else {
+    Serial.println("\n❌ WiFi Connection Failed! Will retry in loop.");
+    return false;
+  }
+}
+
+// ==================== Print System Info ====================
+void printSystemInfo() {
+  Serial.println("\n📊 System Information:");
+  Serial.printf("   IP Address : %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("   MAC Address: %s\n", WiFi.macAddress().c_str());
+  Serial.printf("   RSSI       : %d dBm\n", WiFi.RSSI());
+  Serial.printf("   Free Heap  : %d bytes\n", ESP.getFreeHeap());
+  Serial.println();
+}
+
+// ==================== Poll Device States ====================
+void pollDeviceStates() {
+  String url = String(serverUrl) + "/devices/room/" + String(ROOM_ID);
+
+  http.begin(wifiClient, url);
+  http.setTimeout(500);
+
+  int httpCode = http.GET();
+
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    parseDevices(payload);
+  } else {
+    // Only log errors occasionally to avoid serial spam
+    static unsigned long lastErrLog = 0;
+    if (millis() - lastErrLog > 10000) {
+      Serial.printf("⚠️  Poll failed: HTTP %d\n", httpCode);
+      lastErrLog = millis();
+    }
+  }
+
+  http.end();
+}
+
+// ==================== Parse Devices JSON ====================
+void parseDevices(String payload) {
+  StaticJsonDocument<3072> doc;
+  DeserializationError error = deserializeJson(doc, payload);
+
+  if (error) {
+    Serial.printf("❌ JSON parse error: %s\n", error.c_str());
+    return;
+  }
+
+  JsonArray devices = doc.as<JsonArray>();
+
+  for (JsonVariant device : devices) {
+    int         id       = device["id"];
+    const char* state    = device["current_state"];
+    bool        isSensor = device["is_sensor"];
+
+    if (!isSensor && state != nullptr) {
+      controlDevice(id, String(state));
+    }
+  }
+}
+
+// ==================== Control Device ====================
+void controlDevice(int deviceId, String command) {
+  bool newState = (command == "ON");
+
+  switch (deviceId) {
+
+    // ── Relays ──────────────────────────────────────────────
+    case NIGHT_LIGHT_ID:
+      if (nightLightState != newState) {
+        setRelay(RELAY_NIGHT_LIGHT_PIN, newState);
+        nightLightState = newState;
+        Serial.printf("🌙 Night Light: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+
+    case TV_ID:
+      if (tvState != newState) {
+        setRelay(RELAY_TV_PIN, newState);
+        tvState = newState;
+        Serial.printf("📺 Smart TV: %s (from web)\n", newState ? "ON" : "OFF");
+        
+        // Update LCD display based on TV state
+        updateTVDisplay(newState);
+      }
+      break;
+
+    case MUSIC_ID:
+      if (musicState != newState) {
+        setRelay(RELAY_MUSIC_PIN, newState);
+        musicState = newState;
+        Serial.printf("🎵 Music System: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+
+    // ── Servos ──────────────────────────────────────────────
+    case WINDOW_ID:
+      if (windowServo.currentState != newState) {
+        windowServo.targetState = newState;
+        Serial.printf("🪟 Window: %s command queued\n", newState ? "OPEN" : "CLOSE");
+      }
+      break;
+
+    case DOOR_ID:
+      if (doorServo.currentState != newState) {
+        doorServo.targetState = newState;
+        Serial.printf("🚪 Door: %s command queued\n", newState ? "OPEN" : "CLOSE");
+      }
+      break;
+
+    case CURTAIN_ID:
+      if (curtainServo.currentState != newState) {
+        curtainServo.targetState = newState;
+        Serial.printf("🪟 Curtains: %s command queued\n", newState ? "OPEN" : "CLOSE");
+      }
+      break;
+
+    // Ignore sensor device IDs and unknowns silently
+    default:
+      break;
+  }
+}
+
+// ==================== Set Relay ====================
+void setRelay(int pin, bool state) {
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(pin, state ? LOW : HIGH);
+  } else {
+    digitalWrite(pin, state ? HIGH : LOW);
+  }
+}
+
+// ==================== Set Servo (starts movement) ====================
+void setServo(ServoControl &sc, bool state) {
+  if (sc.isMoving) return;  // Already moving, ignore
+
+  sc.servo.attach(sc.pin);
+  sc.isMoving      = true;
+  sc.moveStartTime = millis();
+
+  if (state) {
+    sc.servo.write(sc.angleOn);
+    Serial.printf("  ↗ %s moving to OPEN (%d°)\n", sc.name, sc.angleOn);
+  } else {
+    sc.servo.write(sc.angleOff);
+    Serial.printf("  ↘ %s moving to CLOSED (%d°)\n", sc.name, sc.angleOff);
+  }
+}
+
+// ==================== Update All Servos ====================
+void updateAllServos() {
+
+  // ── Window ──────────────────────────────────────────────
+  if (windowServo.isMoving) {
+    if (millis() - windowServo.moveStartTime >= SERVO_MOVE_DURATION) {
+      windowServo.servo.detach();
+      windowServo.isMoving     = false;
+      windowServo.currentState = windowServo.targetState;
+      Serial.printf("  ✓ Window movement complete → %s\n",
+                    windowServo.currentState ? "OPEN" : "CLOSED");
+    }
+  } else if (windowServo.currentState != windowServo.targetState) {
+    setServo(windowServo, windowServo.targetState);
+  }
+
+  // ── Door ────────────────────────────────────────────────
+  if (doorServo.isMoving) {
+    if (millis() - doorServo.moveStartTime >= SERVO_MOVE_DURATION) {
+      doorServo.servo.detach();
+      doorServo.isMoving     = false;
+      doorServo.currentState = doorServo.targetState;
+      Serial.printf("  ✓ Door movement complete → %s\n",
+                    doorServo.currentState ? "OPEN" : "CLOSED");
+    }
+  } else if (doorServo.currentState != doorServo.targetState) {
+    setServo(doorServo, doorServo.targetState);
+  }
+
+  // ── Curtain ─────────────────────────────────────────────
+  if (curtainServo.isMoving) {
+    if (millis() - curtainServo.moveStartTime >= SERVO_MOVE_DURATION) {
+      curtainServo.servo.detach();
+      curtainServo.isMoving     = false;
+      curtainServo.currentState = curtainServo.targetState;
+      Serial.printf("  ✓ Curtain movement complete → %s\n",
+                    curtainServo.currentState ? "OPEN" : "CLOSED");
+    }
+  } else if (curtainServo.currentState != curtainServo.targetState) {
+    setServo(curtainServo, curtainServo.targetState);
+  }
+}
+
+// ==================== Read and Send Sensors ====================
+void readAndSendSensors() {
+  // Skip if a servo is mid-movement (can cause I2C/ADC conflicts)
+  if (windowServo.isMoving || doorServo.isMoving || curtainServo.isMoving) {
+    return;
+  }
+
+  float humidity    = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("❌ Failed to read from DHT22 sensor!");
+    return;
+  }
+
+  // Send temperature if it changed by more than 0.5°C
+  if (abs(temperature - lastTemperature) >= 0.5) {
+    char tempStr[20];
+    snprintf(tempStr, sizeof(tempStr), "%.1f°C", temperature);
+    sendSensorData(TEMP_SENSOR_ID, String(tempStr));
+
+    if (temperature > 30) {
+      Serial.printf("🌡️  Kids Room: %.1f°C [HOT] → Sent\n", temperature);
+    } else if (temperature < 20) {
+      Serial.printf("🌡️  Kids Room: %.1f°C [COOL] → Sent\n", temperature);
+    } else {
+      Serial.printf("🌡️  Kids Room: %.1f°C [OK] → Sent\n", temperature);
+    }
+
+    lastTemperature = temperature;
+    lastHumidity    = humidity;
+  }
+}
+
+// ==================== Send Sensor Data ====================
+void sendSensorData(int sensorId, String value) {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  String url = String(serverUrl) + "/devices/" + String(sensorId) + "/sensor";
+
+  http.begin(wifiClient, url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(300);
+
+  StaticJsonDocument<128> doc;
+  doc["sensor_value"] = value;
+
+  String jsonString;
+  serializeJson(doc, jsonString);
+
+  int httpCode = http.PUT(jsonString);
+
+  if (httpCode != 200 && httpCode != 201) {
+    static int failCount = 0;
+    failCount++;
+    if (failCount % 10 == 0) {
+      Serial.printf("❌ Sensor %d update failed: HTTP %d (fail #%d)\n",
+                    sensorId, httpCode, failCount);
+    }
+  }
+
+  http.end();
+}
