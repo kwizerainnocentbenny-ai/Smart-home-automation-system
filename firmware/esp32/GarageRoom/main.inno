@@ -1,0 +1,571 @@
+/*
+ * Smart Home - Garage ESP32 Node
+ * MANUAL CONTROL ONLY - No automatic actions
+ * FIXED: Buzzer now works correctly
+ * 
+ * Controls (Manual only via web):
+ * - Garage Door (GPIO2) - Servo/Motor
+ * - EV Charger (GPIO4) - Relay/Contactor
+ * - Work Lights (GPIO5) - Relay
+ * - Alarm (GPIO18) - BUZZER (active/passive)
+ * 
+ * Sensors (Reporting only - web handles alerts):
+ * - Temperature Sensor (GPIO32) - DHT22
+ * 
+ * WiFi: KWIZERA / Kinno@123
+ * Backend: http://192.168.137.1:8000/api
+ * Room ID: 5 (Garage)
+ * 
+ * Device IDs:
+ * - Garage Door: 23 (Controllable - Servo/Motor)
+ * - EV Charger: 24 (Controllable - Relay)
+ * - Work Lights: 25 (Controllable - Relay)
+ * - Alarm: 26 (Controllable - BUZZER)
+ * - Temperature Sensor: 27 (Sensor - DHT22)
+ */
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
+#include <ESP32Servo.h>
+
+// ==================== WiFi Configuration ====================
+const char* ssid = "KWIZERA";
+const char* password = "Kinno@123";
+const char* serverUrl = "http://192.168.137.1:8000/api";
+const int ROOM_ID = 5;  // Garage
+
+// ==================== Pin Definitions ====================
+#define SERVO_DOOR_PIN 2
+#define RELAY_EV_CHARGER_PIN 4
+#define RELAY_WORK_LIGHTS_PIN 5
+#define BUZZER_ALARM_PIN 18     // Changed from RELAY_ALARM_PIN to BUZZER_ALARM_PIN
+#define DHTPIN 32
+#define DHTTYPE DHT22
+
+// ==================== Device IDs ====================
+const int DOOR_ID = 23;
+const int EV_CHARGER_ID = 24;
+const int WORK_LIGHTS_ID = 25;
+const int ALARM_ID = 26;
+const int TEMP_SENSOR_ID = 27;
+
+// ==================== TIMING ====================
+const long POLL_INTERVAL = 300;      // 300ms for responsive control
+const long SENSOR_INTERVAL = 3000;   // 3 seconds for sensor updates
+const int WIFI_MAX_ATTEMPTS = 20;
+
+// ==================== Relay Logic ====================
+const bool RELAY_ACTIVE_LOW = false;   // false = HIGH turns relay ON
+
+// ==================== Buzzer Configuration ====================
+// Change based on your buzzer type:
+// - ACTIVE_BUZZER: Single tone, just needs power
+// - PASSIVE_BUZZER: Needs PWM signal to create tone
+#define ACTIVE_BUZZER  1
+#define PASSIVE_BUZZER 2
+#define BUZZER_TYPE ACTIVE_BUZZER  // Change this to PASSIVE_BUZZER if using passive buzzer
+
+// Buzzer frequencies for different alert types
+#define BUZZER_FREQ_ALERT 2000  // 2kHz for alarm
+#define BUZZER_FREQ_SIREN 1000  // 1kHz for siren effect
+#define BUZZER_CHANNEL 0         // PWM channel for passive buzzer
+
+// ==================== Servo Positions for Garage Door ====================
+const int DOOR_ANGLE_CLOSED = 0;     // Door closed
+const int DOOR_ANGLE_OPEN = 90;      // Door open
+
+// ==================== Servo Management ====================
+bool servoMoving = false;
+unsigned long servoMoveStartTime = 0;
+const int SERVO_MOVE_DURATION = 500;  // Time to allow servo to move (ms)
+
+// ==================== Alarm/Buzzer Management ====================
+bool alarmActive = false;
+unsigned long alarmStartTime = 0;
+const int ALARM_DURATION = 5000;  // Alarm sounds for 5 seconds when triggered
+
+// For pattern/siren effect (optional)
+bool buzzerState = false;
+unsigned long lastBuzzerToggle = 0;
+const int BUZZER_PATTERN_INTERVAL = 200;  // 200ms on/off for siren effect
+
+// ==================== EV Charger Safety ====================
+bool evChargerState = false;
+unsigned long evChargerStartTime = 0;
+const unsigned long MAX_CHARGE_TIME = 28800000; // 8 hours max charge time (safety)
+
+// ==================== Global Objects ====================
+WiFiClient wifiClient;
+HTTPClient http;
+DHT dht(DHTPIN, DHTTYPE);
+Servo doorServo;
+
+// Device states
+bool doorState = false;          // false = closed, true = open
+bool workLightsState = false;
+bool alarmState = false;
+
+// Target states (for servo)
+bool targetDoorState = false;
+
+// Current sensor values
+float lastTemperature = -1;
+float lastHumidity = -1;
+
+// Timing variables
+unsigned long lastPoll = 0;
+unsigned long lastSensorRead = 0;
+unsigned long lastWiFiCheck = 0;
+
+// ==================== Function Prototypes ====================
+void printHeader();
+void initPins();
+bool connectToWiFi();
+void checkWiFi();
+void pollDeviceStates();
+void parseDevices(String payload);
+void controlDevice(int deviceId, String command);
+void setRelay(int pin, bool state);
+void setBuzzer(bool state);      // Renamed from setAlarm
+void setDoor(bool state);
+void setEVCharger(bool state);
+void updateServo();
+void updateBuzzer();             // Renamed from updateAlarm
+void updateEVCharger();
+void playBuzzerTone(bool on);
+void readAndSendSensors();
+void sendSensorData(int sensorId, String value);
+void printSystemInfo();
+
+// ==================== Setup ====================
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  printHeader();
+  initPins();
+  
+  // Initialize DHT22 sensor
+  dht.begin();
+  Serial.println("  ✓ DHT22 Temperature Sensor initialized");
+  
+  // Configure WiFi for stability
+  WiFi.setSleep(true);
+  WiFi.setTxPower(WIFI_POWER_13dBm);
+  
+  if (connectToWiFi()) {
+    printSystemInfo();
+  }
+  
+  // Configure HTTP client
+  http.setTimeout(1000);
+  http.setReuse(true);
+  
+  Serial.println("\n✅ Setup complete! Manual control only - Web handles alerts\n");
+  delay(100);
+}
+
+// ==================== Main Loop ====================
+void loop() {
+  unsigned long now = millis();
+  
+  // Update servo state (non-blocking)
+  updateServo();
+  
+  // Update buzzer state (non-blocking) - renamed from updateAlarm
+  updateBuzzer();
+  
+  // Update EV charger safety timer
+  updateEVCharger();
+  
+  // Quick WiFi check
+  if (now - lastWiFiCheck >= 30000) {
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("❌ WiFi disconnected! Reconnecting...");
+      WiFi.reconnect();
+    }
+    lastWiFiCheck = now;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    // Poll for web commands
+    if (now - lastPoll >= POLL_INTERVAL) {
+      pollDeviceStates();
+      lastPoll = now;
+    }
+    
+    // Send sensor data
+    if (now - lastSensorRead >= SENSOR_INTERVAL) {
+      readAndSendSensors();
+      lastSensorRead = now;
+    }
+  }
+  
+  delay(10);
+}
+
+// ==================== Print Header ====================
+void printHeader() {
+  Serial.println("\n\n╔══════════════════════════════════════════╗");
+  Serial.println("║       SMART HOME - GARAGE NODE v1.1    ║");
+  Serial.println("║          MANUAL CONTROL ONLY           ║");
+  Serial.println("╠══════════════════════════════════════════╣");
+  Serial.println("║  Garage Door: GPIO2 (Servo)             ║");
+  Serial.println("║  EV Charger: GPIO4 (Relay)              ║");
+  Serial.println("║  Work Lights: GPIO5 (Relay)             ║");
+  Serial.println("║  ALARM: GPIO18 (BUZZER) - FIXED!        ║");
+  Serial.println("║  Temperature: GPIO32 (DHT22)            ║");
+  Serial.println("║  POLLING: 300ms | SENSOR: 3s            ║");
+  Serial.println("║  DEVICE IDs: 23,24,25,26,27             ║");
+  Serial.println("║  BUZZER TYPE: ACTIVE (or PASSIVE)       ║");
+  Serial.println("╚══════════════════════════════════════════╝");
+  Serial.println();
+}
+
+// ==================== Initialize Pins ====================
+void initPins() {
+  Serial.println("\n📌 Initializing garage pins...");
+  
+  pinMode(RELAY_EV_CHARGER_PIN, OUTPUT);
+  pinMode(RELAY_WORK_LIGHTS_PIN, OUTPUT);
+  
+  // Initialize buzzer pin
+  pinMode(BUZZER_ALARM_PIN, OUTPUT);
+  digitalWrite(BUZZER_ALARM_PIN, LOW);  // Start with buzzer OFF
+  
+  // For passive buzzer, setup PWM channel
+  #if BUZZER_TYPE == PASSIVE_BUZZER
+    ledcSetup(BUZZER_CHANNEL, BUZZER_FREQ_ALERT, 8);
+    ledcAttachPin(BUZZER_ALARM_PIN, BUZZER_CHANNEL);
+    ledcWrite(BUZZER_CHANNEL, 0);  // Start with 0 duty cycle (off)
+    Serial.println("  ✓ Passive buzzer configured with PWM");
+  #else
+    Serial.println("  ✓ Active buzzer configured (digital)");
+  #endif
+  
+  // Initialize door servo
+  doorServo.attach(SERVO_DOOR_PIN);
+  doorServo.write(DOOR_ANGLE_CLOSED);  // Start closed
+  delay(100);
+  doorServo.detach();  // DETACH to save resources
+  Serial.println("  ✓ Door servo initialized (CLOSED) - DETACHED");
+  
+  // Start with all relays OFF
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(RELAY_EV_CHARGER_PIN, HIGH);
+    digitalWrite(RELAY_WORK_LIGHTS_PIN, HIGH);
+    Serial.println("  ✓ Relays initialized (OFF) - Active LOW");
+  } else {
+    digitalWrite(RELAY_EV_CHARGER_PIN, LOW);
+    digitalWrite(RELAY_WORK_LIGHTS_PIN, LOW);
+    Serial.println("  ✓ Relays initialized (OFF) - Active HIGH");
+  }
+  
+  Serial.println();
+}
+
+// ==================== Connect to WiFi ====================
+bool connectToWiFi() {
+  Serial.print("📡 Connecting to WiFi: ");
+  Serial.println(ssid);
+  
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(true);
+  WiFi.setTxPower(WIFI_POWER_13dBm);
+  WiFi.begin(ssid, password);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < WIFI_MAX_ATTEMPTS) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi Connected!");
+    return true;
+  } else {
+    Serial.println("\n❌ WiFi Connection Failed!");
+    return false;
+  }
+}
+
+// ==================== Print System Info ====================
+void printSystemInfo() {
+  Serial.println("\n📊 System Information:");
+  Serial.printf("   IP Address: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("   MAC Address: %s\n", WiFi.macAddress().c_str());
+  Serial.printf("   RSSI: %d dBm\n", WiFi.RSSI());
+  Serial.printf("   Free Heap: %d bytes\n", ESP.getFreeHeap());
+  Serial.println();
+}
+
+// ==================== Poll Device States ====================
+void pollDeviceStates() {
+  String url = String(serverUrl) + "/devices/room/" + String(ROOM_ID);
+  
+  http.begin(wifiClient, url);
+  http.setTimeout(500);
+  
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    parseDevices(payload);
+  }
+  
+  http.end();
+}
+
+// ==================== Parse Devices JSON ====================
+void parseDevices(String payload) {
+  StaticJsonDocument<2048> doc;
+  DeserializationError error = deserializeJson(doc, payload);
+  
+  if (error) {
+    return;
+  }
+  
+  JsonArray devices = doc.as<JsonArray>();
+  
+  for (JsonVariant device : devices) {
+    int id = device["id"];
+    const char* state = device["current_state"];
+    bool isSensor = device["is_sensor"];
+    
+    // Control only non-sensor devices
+    if (!isSensor && state != nullptr) {
+      controlDevice(id, String(state));
+    }
+  }
+}
+
+// ==================== Control Device ====================
+void controlDevice(int deviceId, String command) {
+  bool newState = (command == "ON");
+  
+  switch(deviceId) {
+    case DOOR_ID:
+      if (doorState != newState) {
+        targetDoorState = newState;
+        doorState = newState;
+        Serial.printf("🚪 Garage Door: %s command received\n", newState ? "OPEN" : "CLOSE");
+      }
+      break;
+      
+    case EV_CHARGER_ID:
+      if (evChargerState != newState) {
+        setEVCharger(newState);
+        Serial.printf("🔌 EV Charger: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case WORK_LIGHTS_ID:
+      if (workLightsState != newState) {
+        setRelay(RELAY_WORK_LIGHTS_PIN, newState);
+        workLightsState = newState;
+        Serial.printf("💡 Work Lights: %s (from web)\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case ALARM_ID:
+      if (alarmState != newState) {
+        setBuzzer(newState);  // Renamed from setAlarm
+        alarmState = newState;
+        Serial.printf("🔔 Garage Alarm: %s (from web) - BUZZER ACTIVE\n", newState ? "ON" : "OFF");
+      }
+      break;
+  }
+}
+
+// ==================== Set Relay ====================
+void setRelay(int pin, bool state) {
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(pin, state ? LOW : HIGH);
+  } else {
+    digitalWrite(pin, state ? HIGH : LOW);
+  }
+}
+
+// ==================== Play Buzzer Tone ====================
+void playBuzzerTone(bool on) {
+  #if BUZZER_TYPE == PASSIVE_BUZZER
+    if (on) {
+      ledcWriteTone(BUZZER_CHANNEL, BUZZER_FREQ_ALERT);
+      ledcWrite(BUZZER_CHANNEL, 128);  // 50% duty cycle
+    } else {
+      ledcWrite(BUZZER_CHANNEL, 0);  // Turn off
+    }
+  #else
+    // Active buzzer - just set pin HIGH/LOW
+    digitalWrite(BUZZER_ALARM_PIN, on ? HIGH : LOW);
+  #endif
+}
+
+// ==================== Set Buzzer (renamed from setAlarm) ====================
+void setBuzzer(bool state) {
+  if (state) {
+    // Turn buzzer ON
+    playBuzzerTone(true);
+    alarmActive = true;
+    alarmStartTime = millis();
+    lastBuzzerToggle = millis();
+    buzzerState = true;
+    Serial.println("  BUZZER sounding for 5 seconds");
+  } else {
+    // Turn buzzer OFF immediately
+    playBuzzerTone(false);
+    alarmActive = false;
+  }
+}
+
+// ==================== Update Buzzer State (renamed from updateAlarm) ====================
+void updateBuzzer() {
+  // Auto-turn off buzzer after duration
+  if (alarmActive && (millis() - alarmStartTime >= ALARM_DURATION)) {
+    playBuzzerTone(false);
+    alarmActive = false;
+    alarmState = false;
+    Serial.println("  Buzzer auto turned off after 5 seconds");
+  }
+  
+  // Optional: Create siren effect by toggling frequency/power
+  // This creates an on/off pattern for active buzzer
+  #if BUZZER_TYPE == ACTIVE_BUZZER
+  if (alarmActive) {
+    unsigned long now = millis();
+    if (now - lastBuzzerToggle >= BUZZER_PATTERN_INTERVAL) {
+      buzzerState = !buzzerState;
+      digitalWrite(BUZZER_ALARM_PIN, buzzerState ? HIGH : LOW);
+      lastBuzzerToggle = now;
+    }
+  }
+  #endif
+}
+
+// ==================== Set EV Charger (with safety timer) ====================
+void setEVCharger(bool state) {
+  setRelay(RELAY_EV_CHARGER_PIN, state);
+  evChargerState = state;
+  
+  if (state) {
+    evChargerStartTime = millis();
+    Serial.println("  EV Charger started - will auto-off after 8 hours");
+  }
+}
+
+// ==================== Update EV Charger Safety Timer ====================
+void updateEVCharger() {
+  // Auto-turn off EV charger after max charge time (safety)
+  if (evChargerState && (millis() - evChargerStartTime >= MAX_CHARGE_TIME)) {
+    setRelay(RELAY_EV_CHARGER_PIN, false);
+    evChargerState = false;
+    Serial.println("⚠️ EV Charger auto turned off after 8 hours (safety)");
+  }
+}
+
+// ==================== Set Door Servo ====================
+void setDoor(bool state) {
+  targetDoorState = state;
+  
+  if (!servoMoving) {
+    doorServo.attach(SERVO_DOOR_PIN);
+    servoMoving = true;
+    servoMoveStartTime = millis();
+    
+    if (state) {
+      doorServo.write(DOOR_ANGLE_OPEN);
+      Serial.println("  Garage door opening...");
+    } else {
+      doorServo.write(DOOR_ANGLE_CLOSED);
+      Serial.println("  Garage door closing...");
+    }
+  }
+}
+
+// ==================== Update Servo State ====================
+void updateServo() {
+  if (servoMoving) {
+    if (millis() - servoMoveStartTime >= SERVO_MOVE_DURATION) {
+      doorServo.detach();
+      servoMoving = false;
+      Serial.println("  Garage door movement complete - DETACHED");
+    }
+  }
+  
+  // Check if we need to start a new servo movement
+  if (!servoMoving && (doorState != targetDoorState)) {
+    doorState = targetDoorState;
+    setDoor(doorState);
+  }
+}
+
+// ==================== Read and Send Sensors ====================
+void readAndSendSensors() {
+  // Skip sensor reading if servo is moving
+  if (servoMoving) {
+    return;
+  }
+  
+  // Read DHT22 sensor
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+  
+  // Check if any reads failed
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("❌ Failed to read from DHT22 sensor!");
+    return;
+  }
+  
+  // Only send if temperature changed significantly (>0.5°C)
+  if (abs(temperature - lastTemperature) > 0.5) {
+    // Format temperature with unit
+    char tempStr[20];
+    snprintf(tempStr, sizeof(tempStr), "%.1f°C", temperature);
+    
+    sendSensorData(TEMP_SENSOR_ID, String(tempStr));
+    
+    // Garage temperature alerts (different thresholds for garage)
+    if (temperature > 35) {
+      Serial.printf("🌡️ Garage Temperature: %.1f°C [VERY HOT] - Sent\n", temperature);
+    } else if (temperature < 5) {
+      Serial.printf("🌡️ Garage Temperature: %.1f°C [VERY COLD] - Sent\n", temperature);
+    } else {
+      Serial.printf("🌡️ Garage Temperature: %.1f°C [NORMAL] - Sent\n", temperature);
+    }
+    
+    lastTemperature = temperature;
+    lastHumidity = humidity;
+  }
+}
+
+// ==================== Send Sensor Data to Backend ====================
+void sendSensorData(int sensorId, String value) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  
+  String url = String(serverUrl) + "/devices/" + String(sensorId) + "/sensor";
+  
+  http.begin(wifiClient, url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(300);
+  
+  StaticJsonDocument<200> doc;
+  doc["sensor_value"] = value;
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  int httpCode = http.PUT(jsonString);
+  
+  if (httpCode != 200 && httpCode != 201) {
+    static int failCount = 0;
+    failCount++;
+    if (failCount % 10 == 0) {
+      Serial.printf("❌ Sensor %d update failed: HTTP %d\n", sensorId, httpCode);
+    }
+  }
+  
+  http.end();
+}
