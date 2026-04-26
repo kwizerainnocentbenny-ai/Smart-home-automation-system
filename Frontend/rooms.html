@@ -1,0 +1,3142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooms – Smart Home</title>
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden
+        }
+
+        body {
+            font-family: 'Exo 2', sans-serif;
+            background: #060d1f
+        }
+
+        .rooms-container {
+            position: fixed;
+            inset: 0;
+            overflow: hidden
+        }
+
+        .rooms-scroll {
+            height: 100%;
+            overflow-y: auto;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+            scrollbar-width: none
+        }
+
+        .rooms-scroll::-webkit-scrollbar {
+            display: none
+        }
+
+        .room-section {
+            height: 100vh;
+            scroll-snap-align: start;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column
+        }
+
+        .room-bg {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            filter: brightness(.4) saturate(.9);
+            transform: scale(1);
+            transition: transform 8s ease;
+            z-index: 0
+        }
+
+        .room-section:hover .room-bg {
+            transform: scale(1.1)
+        }
+
+        .room-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(6, 13, 31, .1) 0%, rgba(6, 13, 31, .4) 30%, rgba(6, 13, 31, .95) 90%);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding-bottom: 82px;
+            z-index: 1
+        }
+
+        .room-section.scene-morning .room-bg {
+            filter: brightness(.55) saturate(1.1)
+        }
+
+        .room-section.scene-morning .room-overlay {
+            background: linear-gradient(180deg, rgba(255, 160, 40, .08) 0%, rgba(6, 13, 31, .4) 30%, rgba(6, 13, 31, .92) 90%)
+        }
+
+        .room-section.scene-coffee .room-bg {
+            filter: brightness(.45) saturate(.95)
+        }
+
+        .room-section.scene-coffee .room-overlay {
+            background: linear-gradient(180deg, rgba(100, 50, 10, .12) 0%, rgba(6, 13, 31, .4) 30%, rgba(6, 13, 31, .93) 90%)
+        }
+
+        .room-section.scene-dinner .room-bg {
+            filter: brightness(.42) saturate(1.05)
+        }
+
+        .room-section.scene-dinner .room-overlay {
+            background: linear-gradient(180deg, rgba(180, 60, 10, .1) 0%, rgba(6, 13, 31, .4) 30%, rgba(6, 13, 31, .93) 90%)
+        }
+
+        .room-section.scene-night .room-bg {
+            filter: brightness(.25) saturate(.7)
+        }
+
+        .room-section.scene-night .room-overlay {
+            background: linear-gradient(180deg, rgba(0, 5, 30, .2) 0%, rgba(6, 13, 31, .55) 30%, rgba(2, 5, 20, .97) 90%)
+        }
+
+        .room-section.scene-party .room-bg {
+            filter: brightness(.5) saturate(1.3) hue-rotate(10deg)
+        }
+
+        .room-section.scene-party .room-overlay {
+            background: linear-gradient(180deg, rgba(80, 0, 80, .12) 0%, rgba(6, 13, 31, .4) 30%, rgba(6, 13, 31, .93) 90%);
+            animation: partyRoomFlash 3s ease-in-out infinite
+        }
+
+        @keyframes partyRoomFlash {
+
+            0%,
+            100% {
+                background: linear-gradient(180deg, rgba(80, 0, 80, .12) 0%, rgba(6, 13, 31, .4) 30%, rgba(6, 13, 31, .93) 90%)
+            }
+
+            50% {
+                background: linear-gradient(180deg, rgba(120, 0, 120, .18) 0%, rgba(6, 13, 31, .4) 30%, rgba(6, 13, 31, .93) 90%)
+            }
+        }
+
+        .room-section.scene-away .room-bg {
+            filter: brightness(.3) saturate(.5)
+        }
+
+        .room-section.scene-away .room-overlay {
+            background: linear-gradient(180deg, rgba(0, 20, 40, .15) 0%, rgba(6, 13, 31, .5) 30%, rgba(6, 13, 31, .96) 90%)
+        }
+
+        .room-section.fire-emergency .room-overlay {
+            animation: roomFirePulse .5s ease-in-out infinite
+        }
+
+        @keyframes roomFirePulse {
+
+            0%,
+            100% {
+                background: linear-gradient(180deg, rgba(255, 68, 68, .2) 0%, rgba(6, 13, 31, .95) 90%)
+            }
+
+            50% {
+                background: linear-gradient(180deg, rgba(255, 68, 68, .4) 0%, rgba(6, 13, 31, .95) 90%)
+            }
+        }
+
+        /* ── ALCOHOL EMERGENCY room pulse ── */
+        .room-section.alcohol-emergency .room-overlay {
+            animation: roomAlcoholPulse .7s ease-in-out infinite
+        }
+
+        @keyframes roomAlcoholPulse {
+
+            0%,
+            100% {
+                background: linear-gradient(180deg, rgba(255, 165, 0, .18) 0%, rgba(6, 13, 31, .95) 90%)
+            }
+
+            50% {
+                background: linear-gradient(180deg, rgba(255, 165, 0, .38) 0%, rgba(6, 13, 31, .95) 90%)
+            }
+        }
+
+        .room-header {
+            padding: clamp(25px, 4vw, 60px) clamp(20px, 4vw, 60px) 0;
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            position: relative;
+            z-index: 2
+        }
+
+        .room-icon {
+            width: clamp(70px, 7vw, 100px);
+            height: clamp(70px, 7vw, 100px);
+            background: rgba(255, 255, 255, .08);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255, 255, 255, .18);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, .6);
+            flex-shrink: 0;
+            transition: all .4s cubic-bezier(.2, .9, .4, 1)
+        }
+
+        .room-section:hover .room-icon {
+            transform: translateY(-5px) scale(1.05);
+            border-color: rgba(255, 255, 255, .3)
+        }
+
+        .room-icon .iconify {
+            font-size: clamp(30px, 3.8vw, 48px);
+            color: rgba(255, 255, 255, .95);
+            filter: drop-shadow(0 0 15px rgba(255, 255, 255, .3))
+        }
+
+        .room-info {
+            flex: 1
+        }
+
+        .room-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1.8em, 4vw, 3.5em);
+            font-weight: 900;
+            color: white;
+            letter-spacing: 4px;
+            text-shadow: 0 4px 30px rgba(0, 0, 0, .8), 0 0 20px rgba(0, 255, 136, .3);
+            margin-bottom: 8px;
+            transition: all .3s ease
+        }
+
+        .room-section:hover .room-name {
+            text-shadow: 0 4px 30px rgba(0, 0, 0, .8), 0 0 30px rgba(0, 255, 136, .5);
+            letter-spacing: 5px
+        }
+
+        .room-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255, 255, 255, .9);
+            font-size: clamp(.85em, 1.1vw, 1.1em);
+            font-weight: 500;
+            background: rgba(0, 0, 0, .3);
+            padding: 8px 18px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+            width: fit-content;
+            border: 1px solid rgba(255, 255, 255, .1)
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 0 0 15px #00ff88, 0 0 30px rgba(0, 255, 136, .5);
+            animation: dotPulse 2s ease-in-out infinite
+        }
+
+        @keyframes dotPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1
+            }
+
+            50% {
+                transform: scale(1.3);
+                opacity: .8
+            }
+        }
+
+        .live-btn {
+            position: absolute;
+            top: clamp(25px, 4vw, 60px);
+            right: clamp(20px, 4vw, 60px);
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            border: 1px solid rgba(255, 255, 255, .3);
+            border-radius: 30px;
+            padding: 14px 28px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 15px 35px rgba(255, 75, 43, .5);
+            transition: all .4s cubic-bezier(.2, .9, .4, 1.5);
+            z-index: 10;
+            text-transform: uppercase
+        }
+
+        .live-btn:hover {
+            transform: translateY(-5px) scale(1.05)
+        }
+
+        .live-btn .iconify {
+            font-size: 18px;
+            animation: livePulse 1.2s ease-in-out infinite
+        }
+
+        @keyframes livePulse {
+            0% {
+                transform: scale(1)
+            }
+
+            50% {
+                transform: scale(1.3)
+            }
+
+            100% {
+                transform: scale(1)
+            }
+        }
+
+        .scene-banner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            padding: 9px 20px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, .12);
+            backdrop-filter: blur(8px)
+        }
+
+        .scene-banner.visible {
+            display: flex
+        }
+
+        .scene-banner.morning {
+            background: rgba(255, 160, 40, .35)
+        }
+
+        .scene-banner.coffee {
+            background: rgba(100, 50, 10, .4)
+        }
+
+        .scene-banner.dinner {
+            background: rgba(180, 60, 10, .35)
+        }
+
+        .scene-banner.night {
+            background: rgba(10, 20, 80, .5)
+        }
+
+        .scene-banner.party {
+            background: rgba(100, 0, 120, .45);
+            animation: partyBanner 2s ease-in-out infinite alternate
+        }
+
+        @keyframes partyBanner {
+            from {
+                background: rgba(100, 0, 120, .45)
+            }
+
+            to {
+                background: rgba(60, 0, 180, .45)
+            }
+        }
+
+        .scene-banner.away {
+            background: rgba(0, 40, 80, .45)
+        }
+
+        .scene-banner.default {
+            background: rgba(0, 80, 40, .4)
+        }
+
+        .scene-banner .sb-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 0 0 7px #00ff88;
+            animation: dotBeat 1.2s ease-in-out infinite
+        }
+
+        @keyframes dotBeat {
+
+            0%,
+            100% {
+                transform: scale(1)
+            }
+
+            50% {
+                transform: scale(1.45)
+            }
+        }
+
+        .scene-banner .sb-icon {
+            font-size: 16px
+        }
+
+        .devices-section {
+            padding: 0 clamp(20px, 3vw, 50px) 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            flex: 1;
+            z-index: 2;
+            position: relative
+        }
+
+        .devices-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(.8em, 1vw, 1em);
+            font-weight: 700;
+            letter-spacing: 6px;
+            color: rgba(255, 255, 255, .5);
+            text-align: center;
+            margin-bottom: 20px;
+            text-transform: uppercase
+        }
+
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 5px
+        }
+
+        .device-card {
+            position: relative;
+            border-radius: 14px;
+            padding: 16px 8px 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            overflow: visible;
+            animation: cardAppear .6s cubic-bezier(.2, .9, .3, 1.2) both;
+            animation-delay: calc(var(--i, 0)*.05s);
+            backdrop-filter: blur(12px);
+            transition: transform .5s cubic-bezier(.2, .9, .4, 1.3), border-color .4s, box-shadow .4s, background .4s;
+            border: 1px solid rgba(255, 255, 255, .1);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, .5);
+            cursor: pointer
+        }
+
+        .device-card.sensor {
+            cursor: default
+        }
+
+        @keyframes cardAppear {
+            0% {
+                opacity: 0;
+                transform: translateY(40px) scale(.9)
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1)
+            }
+        }
+
+        .device-card.dev-off {
+            background: rgba(10, 20, 40, .7);
+            border: 1px solid rgba(100, 150, 255, .2)
+        }
+
+        .device-card.dev-off:not(.sensor):hover {
+            transform: translateY(-8px) scale(1.03);
+            border-color: rgba(100, 150, 255, .5);
+            background: rgba(20, 35, 65, .8)
+        }
+
+        .device-card.dev-on {
+            background: rgba(0, 255, 136, .15);
+            border: 2px solid rgba(0, 255, 136, .6);
+            box-shadow: 0 0 40px rgba(0, 255, 136, .4), 0 15px 35px rgba(0, 0, 0, .6);
+            animation: cardAppear .6s cubic-bezier(.2, .9, .3, 1.2) both, digitalBreath 2s ease-in-out infinite
+        }
+
+        @keyframes digitalBreath {
+
+            0%,
+            100% {
+                box-shadow: 0 0 30px rgba(0, 255, 136, .3), 0 15px 35px rgba(0, 0, 0, .6)
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(0, 255, 136, .6), 0 15px 35px rgba(0, 0, 0, .6)
+            }
+        }
+
+        .device-card.dev-on:not(.sensor):hover {
+            transform: translateY(-8px) scale(1.05);
+            border-color: rgba(0, 255, 200, .9);
+            background: rgba(0, 255, 136, .22)
+        }
+
+        .device-card.sensor {
+            background: rgba(30, 100, 200, .15);
+            border: 1.5px solid rgba(80, 160, 255, .4);
+            animation: cardAppear .6s cubic-bezier(.22, 1, .36, 1) both, sensorDigital 4s ease-in-out infinite;
+            cursor: default
+        }
+
+        @keyframes sensorDigital {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(50, 150, 255, .1), 0 15px 35px rgba(0, 0, 0, .6)
+            }
+
+            50% {
+                box-shadow: 0 0 35px rgba(50, 150, 255, .3), 0 15px 35px rgba(0, 0, 0, .6)
+            }
+        }
+
+        .device-card.sensor.warning {
+            background: rgba(255, 80, 80, .2);
+            border: 2px solid rgba(255, 80, 80, .7);
+            animation: warningPulse 1.2s ease-in-out infinite
+        }
+
+        @keyframes warningPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 35px rgba(255, 80, 80, .4)
+            }
+
+            50% {
+                box-shadow: 0 0 60px rgba(255, 80, 80, .8)
+            }
+        }
+
+        /* ── ALCOHOL WARNING card style ── */
+        .device-card.sensor.alcohol-warning {
+            background: rgba(255, 165, 0, .2);
+            border: 2px solid rgba(255, 165, 0, .75);
+            animation: alcoholPulse 1s ease-in-out infinite
+        }
+
+        @keyframes alcoholPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 35px rgba(255, 165, 0, .4)
+            }
+
+            50% {
+                box-shadow: 0 0 60px rgba(255, 165, 0, .9)
+            }
+        }
+
+        .device-card.sensor.safe {
+            background: rgba(0, 255, 136, .12);
+            border: 1.5px solid rgba(0, 255, 136, .4)
+        }
+
+        .device-card.sensor.temp-low {
+            background: rgba(40, 80, 180, .2);
+            border-color: rgba(64, 128, 255, .5)
+        }
+
+        .device-card.sensor.temp-normal {
+            background: rgba(0, 180, 100, .15);
+            border-color: rgba(0, 255, 136, .5)
+        }
+
+        .device-card.sensor.temp-high {
+            background: rgba(200, 60, 60, .2);
+            border-color: rgba(255, 80, 80, .6);
+            animation: tempHighPulse 2s infinite
+        }
+
+        @keyframes tempHighPulse {
+
+            0%,
+            100% {
+                border-color: rgba(255, 80, 80, .6)
+            }
+
+            50% {
+                border-color: rgba(255, 120, 120, .9)
+            }
+        }
+
+        .device-card.sensor.fire-warning {
+            animation: firePulse .5s ease-in-out infinite !important;
+            border-color: #ff4444 !important;
+            box-shadow: 0 0 50px rgba(255, 68, 68, .7) !important;
+            background: rgba(255, 68, 68, .25) !important
+        }
+
+        @keyframes firePulse {
+
+            0%,
+            100% {
+                transform: scale(1)
+            }
+
+            50% {
+                transform: scale(1.02)
+            }
+        }
+
+        .fire-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            background: radial-gradient(circle at center, rgba(255, 68, 68, .4) 0%, transparent 70%);
+            pointer-events: none;
+            animation: fireFlicker .3s ease-in-out infinite;
+            z-index: 1
+        }
+
+        @keyframes fireFlicker {
+
+            0%,
+            100% {
+                opacity: .5
+            }
+
+            50% {
+                opacity: 1
+            }
+        }
+
+        /* ── ALCOHOL overlay on card ── */
+        .alcohol-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            background: radial-gradient(circle at center, rgba(255, 165, 0, .35) 0%, transparent 70%);
+            pointer-events: none;
+            animation: alcoholFlicker .5s ease-in-out infinite;
+            z-index: 1
+        }
+
+        @keyframes alcoholFlicker {
+
+            0%,
+            100% {
+                opacity: .4
+            }
+
+            50% {
+                opacity: .9
+            }
+        }
+
+        @keyframes waveHit {
+            0% {
+                transform: scale(1)
+            }
+
+            35% {
+                transform: scale(1.13) translateY(-6px);
+                filter: brightness(1.4)
+            }
+
+            65% {
+                transform: scale(.97)
+            }
+
+            100% {
+                transform: scale(1);
+                filter: brightness(1)
+            }
+        }
+
+        .device-card.wave-hit {
+            animation: waveHit 0.4s cubic-bezier(.2, .9, .4, 1.2) !important
+        }
+
+        .scene-tag {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            z-index: 6;
+            background: rgba(0, 0, 0, .5);
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, .18);
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 7px;
+            font-weight: 900;
+            color: rgba(200, 220, 255, .85);
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            transition: opacity .3s, border-color .3s;
+            pointer-events: none
+        }
+
+        .scene-tag .iconify {
+            font-size: 9px
+        }
+
+        .device-card.dev-on .scene-tag {
+            background: rgba(0, 180, 70, .25);
+            border-color: rgba(0, 255, 136, .4);
+            color: #80ffb0
+        }
+
+        #sceneWaveBeam {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            width: 120px;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, .18), transparent);
+            pointer-events: none;
+            z-index: 9000;
+            opacity: 0;
+            transform: translateX(-200px);
+            filter: blur(8px)
+        }
+
+        #sceneWaveBeam.running {
+            opacity: 1;
+            animation: beamSweep var(--wave-dur, 1.8s) cubic-bezier(.4, 0, .6, 1) forwards
+        }
+
+        @keyframes beamSweep {
+            0% {
+                transform: translateX(-120px);
+                opacity: .9
+            }
+
+            90% {
+                opacity: .7
+            }
+
+            100% {
+                transform: translateX(calc(100vw + 120px));
+                opacity: 0
+            }
+        }
+
+        #sceneWaveLabel {
+            position: fixed;
+            top: 50%;
+            z-index: 9001;
+            transform: translateY(-50%) translateX(-300px);
+            background: rgba(5, 15, 35, .9);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 255, 136, .35);
+            border-radius: 40px;
+            padding: 10px 22px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+            opacity: 0;
+            white-space: nowrap
+        }
+
+        #sceneWaveLabel.running {
+            opacity: 1;
+            animation: labelRide var(--wave-dur, 1.8s) cubic-bezier(.4, 0, .6, 1) forwards
+        }
+
+        @keyframes labelRide {
+            0% {
+                transform: translateY(-50%) translateX(-300px);
+                opacity: 0
+            }
+
+            8% {
+                opacity: 1
+            }
+
+            88% {
+                opacity: 1
+            }
+
+            100% {
+                transform: translateY(-50%) translateX(calc(100vw + 300px));
+                opacity: 0
+            }
+        }
+
+        #sceneWaveLabel .wl-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 0 0 8px #00ff88;
+            animation: dotBeat 1s ease-in-out infinite
+        }
+
+        .icon-wrap {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center
+        }
+
+        .device-card:not(.sensor) .icon-wrap::before {
+            content: '';
+            position: absolute;
+            inset: -6px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            border-top-color: rgba(0, 255, 136, .9);
+            border-right-color: rgba(0, 255, 136, .4);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .4s
+        }
+
+        .device-card.dev-off:not(.sensor):hover .icon-wrap::before {
+            opacity: 1;
+            animation: spinSlow 1.2s linear infinite;
+            border-top-color: rgba(100, 180, 255, .85);
+            border-right-color: rgba(100, 180, 255, .3)
+        }
+
+        .device-card.dev-on:not(.sensor) .icon-wrap::before {
+            opacity: 1;
+            animation: spinSlow 1.2s linear infinite
+        }
+
+        @keyframes spinSlow {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .device-card:not(.sensor) .icon-wrap::after {
+            content: '';
+            position: absolute;
+            inset: -10px;
+            border-radius: 50%;
+            border: 1.5px solid transparent;
+            border-bottom-color: rgba(0, 255, 136, .6);
+            border-left-color: rgba(0, 255, 136, .3);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .4s
+        }
+
+        .device-card.dev-off:not(.sensor):hover .icon-wrap::after {
+            opacity: 1;
+            animation: spinFast .9s linear infinite reverse;
+            border-bottom-color: rgba(100, 180, 255, .55);
+            border-left-color: rgba(100, 180, 255, .22)
+        }
+
+        .device-card.dev-on:not(.sensor) .icon-wrap::after {
+            opacity: 1;
+            animation: spinFast .9s linear infinite reverse
+        }
+
+        @keyframes spinFast {
+            to {
+                transform: rotate(-360deg)
+            }
+        }
+
+        .icon-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .5s cubic-bezier(.2, .9, .4, 1.2);
+            position: relative;
+            z-index: 2
+        }
+
+        .dev-off .icon-circle {
+            background: rgba(30, 50, 90, .5);
+            box-shadow: 0 0 15px rgba(0, 0, 0, .5)
+        }
+
+        .dev-on .icon-circle {
+            background: rgba(0, 255, 136, .2);
+            box-shadow: 0 0 25px rgba(0, 255, 136, .5)
+        }
+
+        .sensor .icon-circle {
+            background: rgba(30, 100, 200, .2);
+            box-shadow: 0 0 20px rgba(50, 150, 255, .3)
+        }
+
+        .icon-circle .iconify {
+            font-size: 24px;
+            transition: all .4s
+        }
+
+        .dev-off .icon-circle .iconify {
+            color: rgba(150, 200, 255, .8);
+            filter: drop-shadow(0 0 6px rgba(100, 150, 255, .4))
+        }
+
+        .dev-on .icon-circle .iconify {
+            color: #fff;
+            filter: drop-shadow(0 0 12px rgba(0, 255, 136, 1));
+            animation: iconFloat .9s ease-in-out infinite alternate
+        }
+
+        @keyframes iconFloat {
+            from {
+                transform: scale(1)
+            }
+
+            to {
+                transform: scale(1.12)
+            }
+        }
+
+        .sensor .icon-circle .iconify {
+            color: #b0d0ff;
+            filter: drop-shadow(0 0 8px rgba(100, 160, 255, .7))
+        }
+
+        .device-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 800;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            line-height: 1.2;
+            transition: all .3s
+        }
+
+        .dev-off .device-name {
+            color: rgba(200, 230, 255, .8)
+        }
+
+        .dev-on .device-name {
+            color: white;
+            text-shadow: 0 0 12px rgba(0, 255, 136, .8)
+        }
+
+        .sensor .device-name {
+            color: rgba(200, 230, 255, .9)
+        }
+
+        .state-pill {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            transition: all .4s cubic-bezier(.34, 1.56, .64, 1);
+            backdrop-filter: blur(5px);
+            min-width: 55px;
+            text-align: center
+        }
+
+        .dev-off .state-pill {
+            background: rgba(30, 50, 80, .6);
+            color: rgba(150, 200, 255, .9);
+            border: 1px solid rgba(100, 150, 255, .3)
+        }
+
+        .dev-on .state-pill {
+            background: rgba(0, 255, 136, .25);
+            color: #fff;
+            border: 1px solid rgba(0, 255, 136, .7);
+            box-shadow: 0 0 15px rgba(0, 255, 136, .5);
+            animation: pillDigital 2s ease-in-out infinite
+        }
+
+        @keyframes pillDigital {
+
+            0%,
+            100% {
+                box-shadow: 0 0 12px rgba(0, 255, 136, .4)
+            }
+
+            50% {
+                box-shadow: 0 0 25px rgba(0, 255, 136, .7)
+            }
+        }
+
+        .sensor .state-pill {
+            background: rgba(30, 100, 200, .2);
+            color: #b0d0ff;
+            border: 1px solid rgba(80, 160, 255, .4);
+            font-size: 10px
+        }
+
+        .sensor .state-pill.warning {
+            background: rgba(255, 80, 80, .3);
+            color: #ffc0c0;
+            border-color: rgba(255, 80, 80, .7)
+        }
+
+        .sensor .state-pill.alcohol-pill {
+            background: rgba(255, 165, 0, .3);
+            color: #ffe0a0;
+            border-color: rgba(255, 165, 0, .7)
+        }
+
+        .sensor-tag {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(40, 100, 220, .4);
+            border: 1px solid rgba(100, 180, 255, .5);
+            border-radius: 4px;
+            padding: 2px 5px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 6px;
+            font-weight: 900;
+            color: #c0e0ff;
+            letter-spacing: .8px;
+            backdrop-filter: blur(5px)
+        }
+
+        .temp-badge,
+        .sensor-badge {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: .5px;
+            z-index: 5;
+            backdrop-filter: blur(4px);
+            border: 1px solid
+        }
+
+        .temp-badge.low {
+            background: rgba(64, 128, 255, .3);
+            color: #80b0ff;
+            border-color: rgba(64, 128, 255, .5)
+        }
+
+        .temp-badge.normal {
+            background: rgba(0, 255, 136, .3);
+            color: #80ffa0;
+            border-color: rgba(0, 255, 136, .5)
+        }
+
+        .temp-badge.high {
+            background: rgba(255, 80, 80, .3);
+            color: #ffa0a0;
+            border-color: rgba(255, 80, 80, .5);
+            animation: badgePulse 2s infinite
+        }
+
+        .sensor-badge.warning {
+            background: rgba(255, 80, 80, .3);
+            color: #ffa0a0;
+            border-color: rgba(255, 80, 80, .5);
+            animation: badgePulse 1.5s infinite
+        }
+
+        .sensor-badge.alcohol {
+            background: rgba(255, 165, 0, .3);
+            color: #ffdf80;
+            border-color: rgba(255, 165, 0, .6);
+            animation: badgePulse 1.2s infinite
+        }
+
+        .sensor-badge.normal {
+            background: rgba(0, 255, 136, .3);
+            color: #80ffa0;
+            border-color: rgba(0, 255, 136, .5)
+        }
+
+        .warning-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #ff4444;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            animation: badgePulse 1s ease-in-out infinite;
+            z-index: 10
+        }
+
+        .alcohol-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: linear-gradient(135deg, #ff8c00, #ff4500);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            animation: badgePulse 1s ease-in-out infinite;
+            z-index: 10
+        }
+
+        @keyframes badgePulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1)
+            }
+
+            50% {
+                opacity: .7;
+                transform: scale(1.1)
+            }
+        }
+
+        .flash-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            pointer-events: none;
+            opacity: 0
+        }
+
+        .dev-on .flash-overlay {
+            background: radial-gradient(circle at 50% 40%, rgba(0, 255, 136, .5) 0%, transparent 80%)
+        }
+
+        .dev-off .flash-overlay {
+            background: radial-gradient(circle at 50% 40%, rgba(150, 200, 255, .4) 0%, transparent 80%)
+        }
+
+        .flash-overlay.burst {
+            animation: burstDigital .5s ease-out forwards
+        }
+
+        @keyframes burstDigital {
+            0% {
+                opacity: 1;
+                transform: scale(.7)
+            }
+
+            60% {
+                opacity: .7;
+                transform: scale(1.2)
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1.6)
+            }
+        }
+
+        .device-card.music-player {
+            background: linear-gradient(135deg, #8e2de2, #4a00e0);
+            border: 2px solid rgba(255, 255, 255, .3);
+            box-shadow: 0 0 40px rgba(142, 45, 226, .5);
+            animation: musicPulse 3s ease-in-out infinite;
+            cursor: pointer;
+            padding: 16px 8px 12px;
+            gap: 8px
+        }
+
+        .device-card.music-player.playing {
+            background: linear-gradient(135deg, #00b09b, #96c93d);
+            border-color: rgba(255, 255, 255, .6)
+        }
+
+        .device-card.music-player .icon-circle {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, .2);
+            box-shadow: 0 0 25px rgba(255, 255, 255, .4)
+        }
+
+        @keyframes musicPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 40px rgba(142, 45, 226, .5)
+            }
+
+            50% {
+                box-shadow: 0 0 70px rgba(142, 45, 226, .8)
+            }
+        }
+
+        .music-controls {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            justify-content: center;
+            width: 100%
+        }
+
+        .music-control-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .15);
+            border: 1px solid rgba(255, 255, 255, .25);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .3s
+        }
+
+        .music-control-btn:hover {
+            background: rgba(255, 255, 255, .3);
+            transform: scale(1.1)
+        }
+
+        .music-control-btn .iconify {
+            font-size: 14px
+        }
+
+        .music-progress {
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, .2);
+            border-radius: 2px;
+            margin-top: 6px;
+            overflow: hidden
+        }
+
+        .music-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00b09b);
+            width: 0%;
+            transition: width .1s linear
+        }
+
+        .music-time {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 9px;
+            color: rgba(255, 255, 255, .7);
+            margin-top: 3px
+        }
+
+        .music-folder-browser {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(10, 20, 40, .95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, .15);
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 10
+        }
+
+        .music-folder-browser.open {
+            display: block
+        }
+
+        .music-folder-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all .2s;
+            border-bottom: 1px solid rgba(255, 255, 255, .05)
+        }
+
+        .music-folder-item:hover {
+            background: rgba(255, 255, 255, .1)
+        }
+
+        .music-folder-item.playing {
+            background: rgba(0, 255, 136, .15);
+            border-left: 3px solid #00ff88
+        }
+
+        .music-folder-item .iconify {
+            font-size: 16px;
+            color: #00ff88
+        }
+
+        .music-folder-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            color: rgba(255, 255, 255, .7);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255, 255, 255, .1);
+            margin-bottom: 5px
+        }
+
+        .music-folder-close {
+            cursor: pointer;
+            color: rgba(255, 255, 255, .5)
+        }
+
+        .music-folder-close:hover {
+            color: #ff4444
+        }
+
+        .music-refresh-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, .1);
+            border: 1px solid rgba(255, 255, 255, .2);
+            border-radius: 12px;
+            color: white;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all .3s;
+            margin: 5px auto 0
+        }
+
+        .nav-dots {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 1000
+        }
+
+        .nav-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .25);
+            cursor: pointer;
+            transition: all .4s cubic-bezier(.2, .9, .4, 1.5);
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, .15)
+        }
+
+        .nav-dot:hover {
+            background: rgba(255, 255, 255, .7);
+            transform: scale(1.4)
+        }
+
+        .nav-dot.active {
+            background: #00ff88;
+            box-shadow: 0 0 25px #00ff88, 0 0 40px rgba(0, 255, 136, .5);
+            transform: scale(1.6);
+            animation: dotActive 2s ease-in-out infinite
+        }
+
+        @keyframes dotActive {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px #00ff88
+            }
+
+            50% {
+                box-shadow: 0 0 35px #00ff88
+            }
+        }
+
+        .nav-dot.active::after {
+            content: attr(data-room);
+            position: absolute;
+            right: 25px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1.2px;
+            white-space: nowrap;
+            background: rgba(0, 20, 40, .95);
+            padding: 6px 14px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, .2);
+            backdrop-filter: blur(10px)
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding: 12px 20px;
+            background: rgba(8, 16, 30, .98);
+            backdrop-filter: blur(25px);
+            border-top: 2px solid rgba(255, 255, 255, .1);
+            z-index: 1000
+        }
+
+        .nav-btn {
+            padding: 14px 20px;
+            border: 2px solid rgba(255, 255, 255, .15);
+            border-radius: 25px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(.8em, 1.1vw, 1em);
+            font-weight: 800;
+            letter-spacing: 2.5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all .5s cubic-bezier(.2, .9, .4, 1.5);
+            overflow: hidden;
+            position: relative;
+            text-transform: uppercase
+        }
+
+        .nav-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .25);
+            transform: translate(-50%, -50%);
+            transition: width .5s, height .5s
+        }
+
+        .nav-btn:hover::before {
+            width: 250px;
+            height: 250px
+        }
+
+        .nav-btn .iconify {
+            font-size: 1.4em;
+            transition: transform .4s
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-5px) scale(1.02)
+        }
+
+        .nav-btn.home {
+            background: linear-gradient(135deg, #1a4a9e, #0f2b5e)
+        }
+
+        .nav-btn.rooms {
+            background: linear-gradient(135deg, #0e8b3a, #0a4f23)
+        }
+
+        .nav-btn.scenes-btn {
+            background: linear-gradient(135deg, #5a0080, #8a00c0)
+        }
+
+        .scene-device-queue {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 340px;
+            pointer-events: none
+        }
+
+        .device-change-toast {
+            background: rgba(10, 20, 40, .95);
+            backdrop-filter: blur(10px);
+            border-left: 4px solid #00ff88;
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+            animation: slideInRight .3s ease;
+            border: 1px solid rgba(255, 255, 255, .1)
+        }
+
+        .device-change-toast.dev-on {
+            border-left-color: #00ff88
+        }
+
+        .device-change-toast.dev-off {
+            border-left-color: #ff6644
+        }
+
+        .device-change-toast .dt-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0
+        }
+
+        .device-change-toast .dt-icon .iconify {
+            font-size: 18px
+        }
+
+        .device-change-toast .dt-info {
+            flex: 1;
+            min-width: 0
+        }
+
+        .device-change-toast .dt-name {
+            font-weight: 700;
+            font-size: 12px;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis
+        }
+
+        .device-change-toast .dt-action {
+            font-size: 10px;
+            opacity: .8;
+            display: flex;
+            align-items: center;
+            gap: 4px
+        }
+
+        .device-change-toast .dt-room {
+            background: rgba(255, 255, 255, .14);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: 600;
+            flex-shrink: 0
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(120%);
+                opacity: 0
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1
+            }
+        }
+
+        .device-change-toast.fade-out {
+            animation: slideOutRight .3s ease forwards
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1
+            }
+
+            to {
+                transform: translateX(120%);
+                opacity: 0
+            }
+        }
+
+        #sceneHeaderBanner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            padding: 12px 24px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 800;
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: white;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .4);
+            border-bottom: 1px solid rgba(255, 255, 255, .15)
+        }
+
+        #sceneHeaderBanner.visible {
+            display: flex;
+            animation: slideDown .35s ease
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+                opacity: 0
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1
+            }
+        }
+
+        #sceneHeaderBanner.slide-up {
+            animation: slideUp .35s ease forwards
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(0);
+                opacity: 1
+            }
+
+            to {
+                transform: translateY(-100%);
+                opacity: 0
+            }
+        }
+
+        #sceneHeaderBanner.morning {
+            background: linear-gradient(90deg, rgba(200, 100, 10, .8), rgba(230, 140, 20, .8))
+        }
+
+        #sceneHeaderBanner.coffee {
+            background: linear-gradient(90deg, rgba(80, 35, 5, .85), rgba(120, 60, 15, .85))
+        }
+
+        #sceneHeaderBanner.dinner {
+            background: linear-gradient(90deg, rgba(160, 50, 5, .85), rgba(200, 70, 10, .85))
+        }
+
+        #sceneHeaderBanner.night {
+            background: linear-gradient(90deg, rgba(10, 15, 60, .9), rgba(20, 30, 100, .9))
+        }
+
+        #sceneHeaderBanner.party {
+            background: linear-gradient(90deg, rgba(80, 0, 100, .85), rgba(50, 0, 160, .85));
+            animation: slideDown .35s ease, partyBannerGlow 2s ease-in-out infinite
+        }
+
+        @keyframes partyBannerGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 4px 20px rgba(180, 0, 200, .4)
+            }
+
+            50% {
+                box-shadow: 0 4px 40px rgba(180, 0, 200, .7)
+            }
+        }
+
+        #sceneHeaderBanner.away {
+            background: linear-gradient(90deg, rgba(0, 30, 70, .9), rgba(0, 50, 110, .9))
+        }
+
+        #sceneHeaderBanner.default {
+            background: linear-gradient(90deg, rgba(0, 60, 25, .85), rgba(0, 90, 35, .85))
+        }
+
+        .shb-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 0 0 8px #00ff88;
+            animation: dotBeat2 1.2s ease-in-out infinite
+        }
+
+        @keyframes dotBeat2 {
+
+            0%,
+            100% {
+                transform: scale(1)
+            }
+
+            50% {
+                transform: scale(1.5)
+            }
+        }
+
+        .shb-close {
+            cursor: pointer;
+            opacity: .7;
+            margin-left: 12px;
+            transition: opacity .2s
+        }
+
+        .shb-close:hover {
+            opacity: 1
+        }
+
+        /* ══════════════════════════════════════
+           DANGER OVERLAY — full screen alert
+           Shown for FIRE and ALCOHOL detection
+           ══════════════════════════════════════ */
+        #dangerOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 99000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: all;
+            animation: dangerBgPulse .6s ease-in-out infinite;
+        }
+
+        #dangerOverlay.fire-mode {
+            background: radial-gradient(ellipse at center,
+                    rgba(255, 40, 0, .92) 0%, rgba(120, 0, 0, .97) 100%);
+        }
+
+        #dangerOverlay.alcohol-mode {
+            background: radial-gradient(ellipse at center,
+                    rgba(220, 100, 0, .92) 0%, rgba(80, 30, 0, .97) 100%);
+        }
+
+        @keyframes dangerBgPulse {
+
+            0%,
+            100% {
+                filter: brightness(1);
+            }
+
+            50% {
+                filter: brightness(1.25);
+            }
+        }
+
+        /* Scanlines for drama */
+        #dangerOverlay::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(0deg,
+                    rgba(0, 0, 0, .07) 0px,
+                    rgba(0, 0, 0, .07) 1px,
+                    transparent 1px,
+                    transparent 4px);
+            pointer-events: none;
+        }
+
+        .danger-icon-ring {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 6px solid rgba(255, 255, 255, .6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 28px;
+            animation: ringPulse .8s ease-in-out infinite;
+            box-shadow: 0 0 60px rgba(255, 255, 255, .3);
+        }
+
+        @keyframes ringPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 60px rgba(255, 255, 255, .3);
+            }
+
+            50% {
+                transform: scale(1.07);
+                box-shadow: 0 0 100px rgba(255, 255, 255, .6);
+            }
+        }
+
+        .danger-icon-ring .iconify {
+            font-size: 90px;
+            color: white;
+            filter: drop-shadow(0 0 25px rgba(255, 255, 255, .8));
+            animation: iconShake .3s ease-in-out infinite;
+        }
+
+        @keyframes iconShake {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(-5deg);
+            }
+
+            75% {
+                transform: rotate(5deg);
+            }
+        }
+
+        .danger-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2em, 6vw, 4.5em);
+            font-weight: 900;
+            color: white;
+            letter-spacing: 8px;
+            text-shadow: 0 0 40px rgba(255, 255, 255, .8), 0 6px 20px rgba(0, 0, 0, .6);
+            margin-bottom: 16px;
+            text-align: center;
+            animation: titleFlash 1s ease-in-out infinite;
+        }
+
+        @keyframes titleFlash {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .7;
+            }
+        }
+
+        .danger-subtitle {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(.9em, 2vw, 1.4em);
+            font-weight: 700;
+            color: rgba(255, 255, 255, .9);
+            letter-spacing: 4px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .danger-reading {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1em, 2.5vw, 1.8em);
+            font-weight: 900;
+            background: rgba(255, 255, 255, .15);
+            border: 2px solid rgba(255, 255, 255, .4);
+            border-radius: 16px;
+            padding: 12px 30px;
+            color: white;
+            letter-spacing: 3px;
+            margin-bottom: 36px;
+        }
+
+        .danger-actions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .danger-btn {
+            padding: 16px 36px;
+            border-radius: 50px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, .6);
+            transition: all .3s;
+        }
+
+        .danger-btn.dismiss {
+            background: rgba(255, 255, 255, .15);
+            color: white;
+        }
+
+        .danger-btn.dismiss:hover {
+            background: rgba(255, 255, 255, .3);
+            transform: scale(1.05);
+        }
+
+        .danger-btn.confirm {
+            background: white;
+            color: #c00;
+        }
+
+        .danger-btn.confirm:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 255, 255, .5);
+        }
+
+        /* Corner bolts (visual detail) */
+        .danger-corner {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-color: rgba(255, 255, 255, .4);
+            border-style: solid;
+        }
+
+        .danger-corner.tl {
+            top: 16px;
+            left: 16px;
+            border-width: 3px 0 0 3px;
+        }
+
+        .danger-corner.tr {
+            top: 16px;
+            right: 16px;
+            border-width: 3px 3px 0 0;
+        }
+
+        .danger-corner.bl {
+            bottom: 16px;
+            left: 16px;
+            border-width: 0 0 3px 3px;
+        }
+
+        .danger-corner.br {
+            bottom: 16px;
+            right: 16px;
+            border-width: 0 3px 3px 0;
+        }
+
+        /* Flashing border stripe at top */
+        .danger-stripe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: repeating-linear-gradient(90deg,
+                    rgba(255, 255, 255, .9) 0px, rgba(255, 255, 255, .9) 30px,
+                    transparent 30px, transparent 60px);
+            animation: stripeScroll 1s linear infinite;
+        }
+
+        @keyframes stripeScroll {
+            to {
+                background-position: 60px 0;
+            }
+        }
+
+        /* ── small persistent alert bar (shown after overlay is dismissed) ── */
+        #alertBar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9998;
+            padding: 10px 20px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: white;
+            cursor: pointer;
+        }
+
+        #alertBar.fire-bar {
+            background: linear-gradient(90deg, rgba(200, 0, 0, .92), rgba(255, 80, 0, .92));
+            border-bottom: 2px solid rgba(255, 180, 0, .8);
+            animation: barPulse .8s ease-in-out infinite;
+        }
+
+        #alertBar.alcohol-bar {
+            background: linear-gradient(90deg, rgba(150, 60, 0, .92), rgba(230, 120, 0, .92));
+            border-bottom: 2px solid rgba(255, 220, 0, .8);
+            animation: barPulse .8s ease-in-out infinite;
+        }
+
+        @keyframes barPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .8;
+            }
+        }
+
+        #alertBar .ab-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 0 10px white;
+            animation: dotBeat 1s ease-in-out infinite;
+        }
+
+        #alertBar .ab-close {
+            margin-left: auto;
+            cursor: pointer;
+            font-size: 16px;
+            opacity: .7;
+            transition: opacity .2s;
+        }
+
+        #alertBar .ab-close:hover {
+            opacity: 1;
+        }
+
+        .live-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .98);
+            backdrop-filter: blur(30px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 5000
+        }
+
+        .live-modal.open {
+            display: flex;
+            animation: modalFadeIn .4s ease
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0
+            }
+
+            to {
+                opacity: 1
+            }
+        }
+
+        .modal-box {
+            background: rgba(10, 20, 40, .98);
+            border: 2px solid rgba(255, 255, 255, .1);
+            border-radius: 25px;
+            padding: 25px;
+            width: 95%;
+            max-width: 1300px;
+            height: 85vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 35px 70px rgba(0, 0, 0, .9)
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 0 8px
+        }
+
+        .modal-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            font-weight: 800;
+            color: white;
+            letter-spacing: 3px;
+            display: flex;
+            align-items: center;
+            gap: 12px
+        }
+
+        .modal-title .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 80, 80, .2);
+            border: 1px solid rgba(255, 100, 100, .5);
+            border-radius: 25px;
+            padding: 5px 14px;
+            color: #ffa0a0;
+            font-size: 13px
+        }
+
+        .modal-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(220, 60, 60, .3);
+            border: 2px solid rgba(255, 100, 100, .4);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .4s
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 80, 80, .8);
+            transform: rotate(180deg) scale(1.1)
+        }
+
+        .live-feed {
+            flex: 1;
+            background: #0a0f1a;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, .1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            position: relative;
+            overflow: hidden
+        }
+
+        .feed-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0a0f1a, #141c2c)
+        }
+
+        .feed-placeholder .iconify {
+            font-size: 100px;
+            color: rgba(255, 140, 140, .25);
+            margin-bottom: 15px;
+            animation: cameraPulse 3s ease-in-out infinite
+        }
+
+        @keyframes cameraPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: .3
+            }
+
+            50% {
+                transform: scale(1.08);
+                opacity: .6
+            }
+        }
+
+        .live-feed-text {
+            color: rgba(255, 255, 255, .7);
+            font-size: 18px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 2px
+        }
+
+        .live-feed .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 80, 80, .2);
+            border: 1px solid rgba(255, 120, 120, .4);
+            border-radius: 25px;
+            padding: 10px 25px;
+            color: #ffc0c0;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 2.5px
+        }
+
+        .live-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            box-shadow: 0 0 18px #ff4444;
+            animation: liveBeat 1s ease-in-out infinite
+        }
+
+        @keyframes liveBeat {
+
+            0%,
+            100% {
+                transform: scale(1)
+            }
+
+            50% {
+                transform: scale(1.3)
+            }
+        }
+
+        .feed-placeholder .hint {
+            color: rgba(255, 255, 255, .25);
+            font-size: 13px;
+            letter-spacing: 2px;
+            margin-top: 15px;
+            font-family: 'Orbitron', sans-serif
+        }
+
+        #toast {
+            position: fixed;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-25px);
+            background: rgba(10, 20, 40, .98);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            border: 1px solid rgba(255, 255, 255, .2);
+            backdrop-filter: blur(20px);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity .4s, transform .4s cubic-bezier(.2, .9, .4, 1.5);
+            white-space: nowrap;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 12px
+        }
+
+        #toast .iconify {
+            font-size: 18px;
+            color: #00ff88;
+            filter: drop-shadow(0 0 10px #00ff88)
+        }
+
+        #toast.emergency {
+            background: rgba(255, 68, 68, .2);
+            border-color: #ff4444
+        }
+
+        .room-loading {
+            text-align: center;
+            color: rgba(255, 255, 255, .6);
+            padding: 35px;
+            grid-column: 1/-1;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 2px;
+            background: rgba(0, 0, 0, .3);
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, .1)
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            gap: 12px;
+            background: rgba(0, 0, 0, .95)
+        }
+
+        .loading .iconify {
+            animation: spin 1s linear infinite;
+            font-size: 28px;
+            color: #00ff88
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg)
+            }
+
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .error-message {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #ff6b6b;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 15px;
+            gap: 20px;
+            text-align: center;
+            padding: 25px;
+            background: rgba(0, 0, 0, .95)
+        }
+
+        .error-details {
+            color: rgba(255, 255, 255, .6);
+            font-size: 13px;
+            max-width: 550px;
+            background: rgba(0, 0, 0, .4);
+            padding: 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, .15);
+            font-family: monospace
+        }
+
+        .scroll-hint {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 20, 40, .9);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, .15);
+            border-radius: 25px;
+            padding: 10px 24px;
+            color: rgba(255, 255, 255, .9);
+            font-size: 11px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 900;
+            transition: opacity .5s;
+            animation: hintFloat 3s ease-in-out infinite
+        }
+
+        @keyframes hintFloat {
+
+            0%,
+            100% {
+                transform: translateX(-50%) translateY(0)
+            }
+
+            50% {
+                transform: translateX(-50%) translateY(-8px)
+            }
+        }
+
+        @media(max-width:768px) {
+            .devices-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 10px
+            }
+
+            .room-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px
+            }
+
+            .live-btn {
+                position: relative;
+                top: 0;
+                right: 0;
+                margin-top: 12px;
+                padding: 10px 20px;
+                font-size: 12px
+            }
+
+            .nav-dot.active::after {
+                display: none
+            }
+        }
+
+        @media(max-width:480px) {
+            .devices-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px
+            }
+
+            .scroll-hint {
+                display: none
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- SCENE HEADER BANNER -->
+    <div id="sceneHeaderBanner">
+        <div class="shb-dot"></div>
+        <span class="iconify" id="shbIcon" data-icon="mdi:play-circle" style="font-size:18px;"></span>
+        <span id="shbText">Scene Active</span>
+        <span class="shb-close" onclick="dismissSceneBanner()">✕</span>
+    </div>
+
+    <!-- PERSISTENT ALERT BAR (shown after overlay dismissed) -->
+    <div id="alertBar" onclick="showDangerOverlay()">
+        <div class="ab-dot"></div>
+        <span class="iconify" id="alertBarIcon" data-icon="mdi:fire-alert" style="font-size:20px;"></span>
+        <span id="alertBarText">DANGER DETECTED</span>
+        <span class="ab-close" onclick="event.stopPropagation();dismissAlertBar()">✕</span>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         FULL-SCREEN DANGER OVERLAY
+         Shows for fire AND alcohol emergencies
+         ════════════════════════════════════════ -->
+    <div id="dangerOverlay">
+        <div class="danger-stripe"></div>
+        <div class="danger-corner tl"></div>
+        <div class="danger-corner tr"></div>
+        <div class="danger-corner bl"></div>
+        <div class="danger-corner br"></div>
+
+        <div class="danger-icon-ring">
+            <span class="iconify" id="dangerIcon" data-icon="mdi:fire-alert" style="font-size:90px;"></span>
+        </div>
+        <div class="danger-title" id="dangerTitle">🔥 FIRE DETECTED</div>
+        <div class="danger-subtitle" id="dangerSubtitle">IMMEDIATE DANGER — KITCHEN</div>
+        <div class="danger-reading" id="dangerReading">SENSOR READING: CRITICAL</div>
+        <div class="danger-actions">
+            <button class="danger-btn dismiss" onclick="dismissDangerOverlay()">
+                I'M AWARE — DISMISS
+            </button>
+            <button class="danger-btn confirm" onclick="dismissDangerOverlay()">
+                ✓ ACKNOWLEDGED
+            </button>
+        </div>
+    </div>
+
+    <!-- DEVICE CHANGE QUEUE -->
+    <div id="deviceChangeQueue" class="scene-device-queue"></div>
+
+    <div class="rooms-container">
+        <div class="rooms-scroll" id="roomsScroll">
+            <div class="loading" id="loadingIndicator">
+                <span class="iconify" data-icon="mdi:loading"></span>LOADING SMART ROOMS...
+            </div>
+        </div>
+    </div>
+
+    <audio id="globalAudioPlayer" style="display:none;"></audio>
+
+    <div class="live-modal" id="liveModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">
+                    <span>LIVE VIEW</span>
+                    <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+                </div>
+                <button class="modal-close" onclick="closeLive()"><span class="iconify"
+                        data-icon="mdi:close"></span></button>
+            </div>
+            <div class="live-feed">
+                <div class="feed-placeholder">
+                    <span class="iconify" data-icon="mdi:cctv"></span>
+                    <div class="live-feed-text" id="modalFeedText">Camera feed loading…</div>
+                    <div class="live-badge"><span class="live-dot"></span>LIVE STREAM</div>
+                    <div class="hint">click to open full stream</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="nav-dots" id="navDots"></div>
+    <div class="scroll-hint" id="scrollHint">
+        <span class="iconify" data-icon="mdi:gesture-swipe-vertical"></span>SWIPE TO NAVIGATE
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-btn home" onclick="window.location.href='home_dashboard.html'">
+            <span class="iconify" data-icon="mdi:home"></span>HOME
+        </button>
+        <button class="nav-btn scenes-btn" onclick="window.location.href='scenes.html'">
+            <span class="iconify" data-icon="mdi:play-circle"></span>SCENES
+        </button>
+    </div>
+
+    <div id="toast"></div>
+    <div id="sceneWaveBeam"></div>
+    <div id="sceneWaveLabel">
+        <span class="wl-dot"></span>
+        <span id="waveLabelIcon" class="iconify" data-icon="mdi:play-circle"></span>
+        <span id="waveLabelText">SCENE ACTIVE</span>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        let roomIds = [];
+        const TEMP_LOW = 18, TEMP_HIGH = 28;
+        const audioPlayer = document.getElementById('globalAudioPlayer');
+        let currentMusicDeviceId = null, currentMusicCard = null;
+        let sensorUpdateIntervals = {};
+        const musicLibrary = {};
+        const MUSIC_FOLDERS = { 'living': 'music/living_room/', 'bedroom': 'music/bedroom/', 'kitchen': 'music/kitchen/', 'bathroom': 'music/bathroom/', 'garage': 'music/garage/', 'kids': 'music/kids/' };
+        const SAMPLE_MUSIC = { 'living': ['relaxing-jazz.mp3', 'ambient-music.mp3', 'chill-lofi.mp3'], 'bedroom': ['sleep-sounds.mp3', 'white-noise.mp3', 'gentle-rain.mp3'], 'kitchen': ['cooking-jazz.mp3', 'morning-playlist.mp3', 'upbeat-pop.mp3'], 'bathroom': ['spa-music.mp3', 'relaxing-water.mp3', 'calm-melody.mp3'], 'garage': ['rock-playlist.mp3', 'workout-music.mp3', 'energetic-beats.mp3'], 'kids': ['nursery-rhymes.mp3', 'kids-songs.mp3', 'lullabies.mp3'] };
+
+        /* ── SCENE STATE ── */
+        let lastActiveSceneId = null;
+        let lastActiveSceneName = '';
+        let sceneCheckInterval = null;
+        let previousDeviceStates = new Map();
+        let allRoomsData = [];
+
+        /* ══════════════════════════════════════════════════════
+           DANGER ALERT SYSTEM
+           ══════════════════════════════════════════════════════
+           activeAlerts: Map of deviceId → { type:'fire'|'alcohol', reading, roomName }
+           We keep one "most severe" alert visible at a time.
+           Fire > Alcohol in severity.
+        ══════════════════════════════════════════════════════ */
+        const activeAlerts = new Map();
+        let overlayDismissedOnce = false;   // Don't re-show overlay if user dismissed this cycle
+        let alertBarDismissed = false;
+        let lastAlertKey = '';              // Prevents re-triggering on same reading
+
+        /**
+         * Call when fire or alcohol is detected.
+         * @param {'fire'|'alcohol'} type
+         * @param {number} deviceId
+         * @param {string} reading     e.g. "243|CRITICAL|FIRE DETECTED"
+         * @param {string} roomName
+         */
+        function triggerDangerAlert(type, deviceId, reading, roomName) {
+            const alertKey = `${type}-${deviceId}-${reading}`;
+            activeAlerts.set(deviceId, { type, reading, roomName });
+
+            // Only re-open overlay if it's a NEW event (different reading)
+            if (alertKey !== lastAlertKey) {
+                lastAlertKey = alertKey;
+                overlayDismissedOnce = false;
+                alertBarDismissed = false;
+            }
+
+            if (!overlayDismissedOnce) {
+                showDangerOverlay();
+            } else {
+                // overlay was dismissed — keep the bar visible
+                showAlertBar(type, reading, roomName);
+            }
+        }
+
+        /** Clear alert for a device when it returns to safe state */
+        function clearDangerAlert(deviceId) {
+            activeAlerts.delete(deviceId);
+            if (activeAlerts.size === 0) {
+                hideDangerOverlay();
+                hideAlertBar();
+                lastAlertKey = '';
+                overlayDismissedOnce = false;
+                alertBarDismissed = false;
+            } else {
+                // Update display for remaining alerts
+                const [, remaining] = [...activeAlerts.entries()][0];
+                showAlertBar(remaining.type, remaining.reading, remaining.roomName);
+            }
+        }
+
+        function showDangerOverlay() {
+            if (activeAlerts.size === 0) return;
+
+            // Pick most severe: prefer fire over alcohol
+            let chosen = null;
+            for (const v of activeAlerts.values()) {
+                if (!chosen || v.type === 'fire') { chosen = v; if (v.type === 'fire') break; }
+            }
+
+            const overlay = document.getElementById('dangerOverlay');
+            const icon = document.getElementById('dangerIcon');
+            const title = document.getElementById('dangerTitle');
+            const sub = document.getElementById('dangerSubtitle');
+            const reading = document.getElementById('dangerReading');
+
+            overlay.className = chosen.type === 'fire' ? 'fire-mode' : 'alcohol-mode';
+            overlay.style.display = 'flex';
+
+            if (chosen.type === 'fire') {
+                icon.setAttribute('data-icon', 'mdi:fire-alert');
+                title.textContent = '🔥 FIRE DETECTED!';
+                sub.textContent = `IMMEDIATE DANGER — ${chosen.roomName.toUpperCase()}`;
+                reading.textContent = `SENSOR: ${chosen.reading}`;
+            } else {
+                icon.setAttribute('data-icon', 'mdi:gas-cylinder');
+                title.textContent = '⚠️ GAS / ALCOHOL DETECTED!';
+                sub.textContent = `HAZARDOUS LEVELS — ${chosen.roomName.toUpperCase()}`;
+                reading.textContent = `SENSOR: ${chosen.reading}`;
+            }
+
+            if (typeof Iconify !== 'undefined') Iconify.scan(overlay);
+            // Hide the alert bar while overlay is open
+            hideAlertBar();
+        }
+
+        function hideDangerOverlay() {
+            document.getElementById('dangerOverlay').style.display = 'none';
+        }
+
+        function dismissDangerOverlay() {
+            overlayDismissedOnce = true;
+            hideDangerOverlay();
+            // Show the persistent bar so user remembers there's still a hazard
+            if (activeAlerts.size > 0) {
+                const [, v] = [...activeAlerts.entries()][0];
+                showAlertBar(v.type, v.reading, v.roomName);
+            }
+        }
+
+        function showAlertBar(type, reading, roomName) {
+            if (alertBarDismissed) return;
+            const bar = document.getElementById('alertBar');
+            const icon = document.getElementById('alertBarIcon');
+            const txt = document.getElementById('alertBarText');
+            if (type === 'fire') {
+                bar.className = 'fire-bar';
+                icon.setAttribute('data-icon', 'mdi:fire-alert');
+                txt.textContent = `🔥 FIRE IN ${roomName.toUpperCase()} — TAP TO VIEW`;
+            } else {
+                bar.className = 'alcohol-bar';
+                icon.setAttribute('data-icon', 'mdi:gas-cylinder');
+                txt.textContent = `⚠️ GAS DETECTED IN ${roomName.toUpperCase()} — TAP TO VIEW`;
+            }
+            bar.style.display = 'flex';
+            if (typeof Iconify !== 'undefined') Iconify.scan(bar);
+        }
+
+        function hideAlertBar() {
+            document.getElementById('alertBar').style.display = 'none';
+        }
+
+        function dismissAlertBar() {
+            alertBarDismissed = true;
+            hideAlertBar();
+        }
+
+        /* ══════════════════════════════════════════════════════
+           WAVE ENGINE (unchanged from original)
+        ══════════════════════════════════════════════════════ */
+        async function setDeviceToState(card, targetState) {
+            const wantOn = targetState === "ON";
+            const isOn = card.classList.contains("dev-on");
+            if (isOn === wantOn) return;
+            card.classList.toggle('dev-on', wantOn);
+            card.classList.toggle('dev-off', !wantOn);
+            const pill = card.querySelector('.state-pill');
+            if (pill) {
+                const name = (card.querySelector('.device-name')?.textContent || '').toLowerCase();
+                if (['window', 'door', 'curtain', 'blind', 'garage', 'gate'].some(k => name.includes(k))) pill.textContent = wantOn ? 'OPEN' : 'CLOSED';
+                else if (name.includes('shower')) pill.textContent = wantOn ? 'RUNNING' : 'OFF';
+                else if (name.includes('heater')) pill.textContent = wantOn ? 'HEATING' : 'OFF';
+                else if (name.includes('mirror')) pill.textContent = wantOn ? 'ACTIVE' : 'OFF';
+                else pill.textContent = wantOn ? 'ON' : 'OFF';
+            }
+            const fl = card.querySelector('.flash-overlay');
+            if (fl) { fl.classList.remove('burst'); void fl.offsetWidth; fl.classList.add('burst'); }
+            card.classList.remove('wave-hit'); void card.offsetWidth; card.classList.add('wave-hit');
+            setTimeout(() => card.classList.remove('wave-hit'), 450);
+        }
+
+        async function fireSceneWave(sceneDevices, activating, sceneName) {
+            if (!sceneDevices || !sceneDevices.length) return;
+            const targets = [];
+            for (const sd of sceneDevices) {
+                const card = document.querySelector(`.device-card[data-device-id="${sd.device_id}"]`);
+                if (!card) continue;
+                if (!card.querySelector(".scene-tag")) {
+                    const tag = document.createElement("div"); tag.className = "scene-tag";
+                    tag.innerHTML = `<span class="iconify" data-icon="mdi:play-circle"></span>SCENE`;
+                    card.insertBefore(tag, card.firstChild);
+                    if (typeof Iconify !== "undefined") Iconify.scan(tag);
+                }
+                if (card.classList.contains("sensor")) continue;
+                const rect = card.getBoundingClientRect();
+                const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+                targets.push({ card, deviceId: sd.device_id, actionState: sd.action_state, absTop: rect.top + scrollY, cx: rect.left + rect.width / 2 });
+            }
+            if (!targets.length) return;
+            targets.sort((a, b) => { const dy = a.absTop - b.absTop; if (Math.abs(dy) > 50) return dy; return a.cx - b.cx; });
+            const waveDurSec = Math.min(3.2, Math.max(1.6, 0.2 * targets.length + 1.0));
+            const waveDurMs = waveDurSec * 1000;
+            const beam = document.getElementById("sceneWaveBeam"); const label = document.getElementById("sceneWaveLabel");
+            const labelIcon = document.getElementById("waveLabelIcon"); const labelText = document.getElementById("waveLabelText");
+            beam.style.setProperty("--wave-dur", waveDurSec + "s"); label.style.setProperty("--wave-dur", waveDurSec + "s");
+            labelIcon.setAttribute("data-icon", getSceneIcon(sceneName)); labelText.textContent = activating ? sceneName.toUpperCase() + " SCENE" : "SCENE OFF";
+            beam.style.background = `linear-gradient(90deg, transparent, ${getSceneBeamColor(sceneName, activating)}, transparent)`;
+            beam.classList.remove("running"); label.classList.remove("running"); void beam.offsetWidth; void label.offsetWidth;
+            beam.classList.add("running"); label.classList.add("running");
+            const spread = waveDurMs * 0.75;
+            targets.forEach(({ card, deviceId, actionState }, i) => {
+                const delay = targets.length === 1 ? 300 : (i / (targets.length - 1)) * spread;
+                setTimeout(() => { setDeviceToState(card, actionState); }, delay);
+            });
+            setTimeout(() => { beam.classList.remove("running"); label.classList.remove("running"); }, waveDurMs + 400);
+        }
+
+        function removeScenesTagsFromCards() { document.querySelectorAll(".device-card .scene-tag").forEach(t => t.remove()); }
+        function getSceneBeamColor(name, activating) { if (!activating) return "rgba(80,120,255,.3)"; const n = (name || "").toLowerCase(); if (n.includes("morning")) return "rgba(255,190,50,.38)"; if (n.includes("coffee")) return "rgba(180,100,30,.42)"; if (n.includes("dinner")) return "rgba(220,90,20,.4)"; if (n.includes("night")) return "rgba(30,60,200,.42)"; if (n.includes("party")) return "rgba(180,0,220,.48)"; if (n.includes("away")) return "rgba(0,100,180,.4)"; return "rgba(0,255,136,.28)"; }
+        function getSceneThemeClass(sceneName) { const n = (sceneName || '').toLowerCase(); if (n.includes('morning') && !n.includes('coffee')) return 'morning'; if (n.includes('coffee')) return 'coffee'; if (n.includes('dinner')) return 'dinner'; if (n.includes('night')) return 'night'; if (n.includes('party') && !n.includes('over')) return 'party'; if (n.includes('away')) return 'away'; return 'default'; }
+        function getSceneIcon(sceneName) { const n = (sceneName || '').toLowerCase(); if (n.includes('morning') && !n.includes('coffee')) return 'mdi:weather-sunny'; if (n.includes('coffee')) return 'mdi:coffee'; if (n.includes('dinner')) return 'mdi:silverware-fork-knife'; if (n.includes('night')) return 'mdi:moon-waning-crescent'; if (n.includes('party') && !n.includes('over')) return 'mdi:party-popper'; if (n.includes('away')) return 'mdi:airplane'; return 'mdi:play-circle'; }
+        function getSceneEmoji(name) { return { 'Good Morning': '🌅', 'Morning Coffee': '☕', 'Happy Dinner': '🍽️', 'Good Night': '🌙', 'Party': '🎉', 'Party Over': '😴', 'Away Mode': '✈️' }[name] || '✅'; }
+        function applySceneThemeToRooms(sceneName) { const themeClass = sceneName ? getSceneThemeClass(sceneName) : null; document.querySelectorAll('.room-section').forEach(section => { section.classList.remove('scene-morning', 'scene-coffee', 'scene-dinner', 'scene-night', 'scene-party', 'scene-away'); if (themeClass && themeClass !== 'default') section.classList.add('scene-' + themeClass); const banner = section.querySelector('.scene-banner'); if (banner) { banner.className = 'scene-banner'; if (sceneName) { banner.classList.add('visible', themeClass); const icon = banner.querySelector('.sb-icon'); const txt = banner.querySelector('.sb-text'); if (icon) icon.setAttribute('data-icon', getSceneIcon(sceneName)); if (txt) txt.textContent = sceneName + ' ACTIVE'; } } }); if (typeof Iconify !== 'undefined') Iconify.scan(); }
+        function showSceneHeaderBanner(sceneName) { const banner = document.getElementById('sceneHeaderBanner'); const icon = document.getElementById('shbIcon'); const text = document.getElementById('shbText'); const themeClass = getSceneThemeClass(sceneName); banner.className = 'visible ' + themeClass; icon.setAttribute('data-icon', getSceneIcon(sceneName)); text.textContent = `${getSceneEmoji(sceneName)} ${sceneName.toUpperCase()} ACTIVATED`; banner.style.display = 'flex'; if (typeof Iconify !== 'undefined') Iconify.scan(); clearTimeout(banner._timer); banner._timer = setTimeout(() => dismissSceneBanner(), 6000); }
+        function dismissSceneBanner() { const banner = document.getElementById('sceneHeaderBanner'); banner.classList.add('slide-up'); setTimeout(() => { banner.style.display = 'none'; banner.classList.remove('slide-up'); }, 350); }
+        function clearSceneBanner() { const banner = document.getElementById('sceneHeaderBanner'); banner.style.display = 'none'; applySceneThemeToRooms(null); }
+        async function checkActiveScene() { try { const r = await fetch(`${API_BASE}/scenes`); if (!r.ok) return; const scenes = await r.json(); const active = scenes.find(s => s.is_enabled === true); if (active) { if (active.id !== lastActiveSceneId) { lastActiveSceneId = active.id; lastActiveSceneName = active.name; applySceneThemeToRooms(active.name); showSceneHeaderBanner(active.name); fireSceneWave(active.devices || [], true, active.name); } } else { if (lastActiveSceneId !== null) { const prevSceneName = lastActiveSceneName; lastActiveSceneId = null; lastActiveSceneName = ''; clearSceneBanner(); try { const sr2 = await fetch(`${API_BASE}/scenes`); if (sr2.ok) { const allScenes = await sr2.json(); const prevScene = allScenes.find(s => s.name === prevSceneName); if (prevScene && prevScene.devices) { const offDevices = prevScene.devices.map(d => ({ ...d, action_state: 'OFF' })); fireSceneWave(offDevices, false, prevSceneName); } } } catch { } removeScenesTagsFromCards(); showToast('SCENE DEACTIVATED', 'mdi:play-circle-outline'); } } } catch { } }
+        async function storeCurrentDeviceStates() { try { const devs = await fetchAllDevices(); previousDeviceStates.clear(); devs.forEach(d => previousDeviceStates.set(d.id, { state: d.current_state })); } catch { } }
+
+        /* ── MUSIC ── */
+        function initializeRoomMusic(roomId, roomName) { if (!musicLibrary[roomId]) { musicLibrary[roomId] = { songs: [], currentSong: null }; const rl = roomName.toLowerCase(); let fk = null; for (const [key] of Object.entries(MUSIC_FOLDERS)) { if (rl.includes(key)) { fk = key; break; } } if (fk && SAMPLE_MUSIC[fk]) { SAMPLE_MUSIC[fk].forEach((fn, i) => { musicLibrary[roomId].songs.push({ id: `song-${roomId}-${i}`, name: fn.replace('.mp3', '').replace(/-/g, ' '), url: `${MUSIC_FOLDERS[fk]}${fn}`, duration: 180 + Math.floor(Math.random() * 120) }); }); } } }
+        function toggleFolderBrowser(roomId, button) { event.stopPropagation(); const card = button.closest('.device-card'); card.querySelector('.music-folder-browser').classList.toggle('open'); }
+        function refreshMusicFolder(roomId, button) { event.stopPropagation(); showToast('Refreshing music library...', 'mdi:refresh'); updateFolderUI(roomId); }
+        function updateFolderUI(roomId) { document.querySelectorAll(`.music-folder-browser[data-room-id="${roomId}"]`).forEach(browser => { const room = musicLibrary[roomId]; if (!room || !room.songs.length) { browser.innerHTML = `<div class="music-folder-header"><span>🎵 No Music Found</span><span class="music-folder-close" onclick="this.closest('.music-folder-browser').classList.remove('open')">✕</span></div><div class="music-folder-item" style="justify-content:center;opacity:.5">Add MP3 files to the folder</div>`; return; } let html = `<div class="music-folder-header"><span>🎵 Library (${room.songs.length})</span><span class="music-folder-close" onclick="this.closest('.music-folder-browser').classList.remove('open')">✕</span></div>`; room.songs.forEach(song => { const isP = room.currentSong === song.id && !audioPlayer.paused; html += `<div class="music-folder-item ${isP ? 'playing' : ''}" onclick="playSongFromFolder(${roomId},'${song.id}',this)"><span class="iconify" data-icon="${isP ? 'mdi:pause' : 'mdi:play'}" style="color:${isP ? '#00ff88' : '#fff'}"></span><span style="flex:1">${song.name}</span><span style="font-size:8px;opacity:.7">${formatTime(song.duration)}</span></div>`; }); browser.innerHTML = html; }); }
+        function playSongFromFolder(roomId, songId, element) { event.stopPropagation(); const room = musicLibrary[roomId]; if (!room) return; const song = room.songs.find(s => s.id === songId); if (!song) return; const card = element.closest('.device-card'); const deviceId = parseInt(card.getAttribute('data-device-id')); if (currentMusicDeviceId === deviceId && !audioPlayer.paused && room.currentSong === songId) { audioPlayer.pause(); updateMusicCardState(card, 'PAUSED', false); updateFolderUI(roomId); } else if (currentMusicDeviceId === deviceId && audioPlayer.paused && room.currentSong === songId) { audioPlayer.play(); updateMusicCardState(card, 'PLAYING', true); updateFolderUI(roomId); requestAnimationFrame(() => updateProgress(roomId, deviceId)); } else { if (currentMusicDeviceId && currentMusicDeviceId !== deviceId) { const prevCard = document.querySelector(`.device-card[data-device-id="${currentMusicDeviceId}"]`); if (prevCard) { const prevRoomId = parseInt(prevCard.closest('.room-section').id.split('-')[1]); if (musicLibrary[prevRoomId]) musicLibrary[prevRoomId].currentSong = null; updateMusicCardState(prevCard, 'STOPPED', false); } audioPlayer.pause(); } audioPlayer.src = song.url; audioPlayer.play(); room.currentSong = songId; currentMusicDeviceId = deviceId; currentMusicCard = card; updateMusicCardState(card, 'PLAYING', true); updateFolderUI(roomId); requestAnimationFrame(() => updateProgress(roomId, deviceId)); } }
+        function updateMusicCardState(card, state, isPlaying) { const sp = card.querySelector('.state-pill'); const pb = card.querySelector('.music-control-btn[onclick*="playPauseMusic"] .iconify'); sp.textContent = state; if (isPlaying) { card.classList.add('playing'); if (pb) pb.setAttribute('data-icon', 'mdi:pause'); } else { card.classList.remove('playing'); if (pb) pb.setAttribute('data-icon', 'mdi:play'); } }
+        function playPauseMusic(event, deviceId, btn) { event.stopPropagation(); const card = btn.closest('.device-card'); const roomId = parseInt(card.closest('.room-section').id.split('-')[1]); const room = musicLibrary[roomId]; if (!room || !room.songs.length) { toggleFolderBrowser(roomId, btn); return; } if (!room.currentSong) { const fs = room.songs[0]; if (fs) playSongFromFolder(roomId, fs.id, card); return; } playSongFromFolder(roomId, room.currentSong, card); }
+        function stopMusic(event, deviceId, btn) { event.stopPropagation(); const card = btn.closest('.device-card'); const roomId = parseInt(card.closest('.room-section').id.split('-')[1]); audioPlayer.pause(); audioPlayer.currentTime = 0; if (musicLibrary[roomId]) musicLibrary[roomId].currentSong = null; updateMusicCardState(card, 'STOPPED', false); document.getElementById(`progress-${deviceId}`).style.width = '0%'; document.getElementById(`time-${deviceId}`).textContent = '00:00 / 00:00'; currentMusicDeviceId = null; }
+        function updateProgress(roomId, deviceId) { if (!audioPlayer || audioPlayer.paused || !musicLibrary[roomId]?.currentSong) return; const s = musicLibrary[roomId].songs.find(x => x.id === musicLibrary[roomId].currentSong); if (!s) return; const p = (audioPlayer.currentTime / s.duration) * 100; document.getElementById(`progress-${deviceId}`).style.width = `${p}%`; document.getElementById(`time-${deviceId}`).textContent = `${formatTime(audioPlayer.currentTime)} / ${formatTime(s.duration)}`; requestAnimationFrame(() => updateProgress(roomId, deviceId)); }
+        function formatTime(sec) { if (!sec || isNaN(sec)) return '00:00'; const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; }
+        function createMusicPlayerCard(deviceId, deviceName, roomId) { const card = document.createElement('div'); card.className = 'device-card music-player'; card.setAttribute('data-device-id', deviceId); card.innerHTML = `<div class="flash-overlay"></div><div class="icon-wrap"><div class="icon-circle"><span class="iconify" data-icon="mdi:music"></span></div></div><div class="device-name">${deviceName}</div><div class="state-pill">STOPPED</div><div class="music-controls"><button class="music-control-btn" onclick="playPauseMusic(event,${deviceId},this)"><span class="iconify" data-icon="mdi:play"></span></button><button class="music-control-btn" onclick="stopMusic(event,${deviceId},this)"><span class="iconify" data-icon="mdi:stop"></span></button><button class="music-control-btn" onclick="toggleFolderBrowser(${roomId},this)"><span class="iconify" data-icon="mdi:folder-music"></span></button></div><div class="music-progress"><div class="music-progress-bar" id="progress-${deviceId}"></div></div><div class="music-time" id="time-${deviceId}">00:00 / 00:00</div><div class="music-folder-browser" data-room-id="${roomId}"><div class="music-folder-header"><span>🎵 Loading...</span></div></div><div class="music-refresh-btn" onclick="refreshMusicFolder(${roomId},this)"><span class="iconify" data-icon="mdi:refresh"></span> Refresh</div>`; return card; }
+
+        /* ── SENSORS ── */
+        function startSensorRealtimeUpdates(roomId, deviceId) { if (sensorUpdateIntervals[deviceId]) clearInterval(sensorUpdateIntervals[deviceId]); sensorUpdateIntervals[deviceId] = setInterval(async () => { try { const r = await fetch(`${API_BASE}/devices/${deviceId}`); if (!r.ok) throw new Error(); const device = await r.json(); const card = document.querySelector(`.device-card[data-device-id="${deviceId}"]`); if (card && device.sensor_value) updateSensorCard(card, device); } catch { } }, 2000); }
+
+        /* ══════════════════════════════════════════════════════
+           updateSensorCard — the function that was silently
+           missing the fire/alcohol triggers.
+           Now correctly:
+           1. Calls getDeviceState() to get parsed state
+           2. Applies the right visual CSS
+           3. Triggers danger overlay when warning detected
+        ══════════════════════════════════════════════════════ */
+        function updateSensorCard(card, device) {
+            const sp = card.querySelector('.state-pill');
+            const ds = getDeviceState(device);
+
+            // Update pill text
+            if (sp) {
+                sp.textContent = ds.displayValue;
+                sp.className = 'state-pill' + (ds.warning ? ' warning' : '') + (ds.alcoholWarning ? ' alcohol-pill' : '');
+            }
+
+            // --- Room name for alert messages ---
+            const roomSection = card.closest('.room-section');
+            const roomName = roomSection?.querySelector('.room-name')?.textContent?.trim() || 'Unknown Room';
+
+            // ── FIRE ─────────────────────────────────────────
+            if (ds.isFire) {
+                card.classList.add('sensor', 'fire-warning');
+                card.classList.remove('safe', 'alcohol-warning', 'temp-normal');
+                card.classList.remove('warning'); // use fire-warning instead
+
+                // Add fire overlay if not there
+                if (!card.querySelector('.fire-overlay')) {
+                    const fo = document.createElement('div');
+                    fo.className = 'fire-overlay';
+                    card.appendChild(fo);
+                }
+                // Remove alcohol overlay if present
+                const ao = card.querySelector('.alcohol-overlay');
+                if (ao) ao.remove();
+
+                // Room background pulsing
+                if (roomSection) {
+                    roomSection.classList.add('fire-emergency');
+                    roomSection.classList.remove('alcohol-emergency');
+                }
+
+                // Trigger full-screen danger alert
+                triggerDangerAlert('fire', device.id, ds.displayValue, roomName);
+
+                // Update warning badge on card
+                let wb = card.querySelector('.warning-badge');
+                if (!wb) {
+                    wb = document.createElement('div');
+                    wb.className = 'warning-badge';
+                    card.appendChild(wb);
+                }
+                wb.textContent = '🔥 FIRE!';
+
+                // ── ALCOHOL / GAS ─────────────────────────────────
+            } else if (ds.alcoholWarning) {
+                card.classList.add('sensor', 'alcohol-warning');
+                card.classList.remove('safe', 'fire-warning', 'temp-normal', 'warning');
+
+                // Add alcohol overlay
+                if (!card.querySelector('.alcohol-overlay')) {
+                    const ao = document.createElement('div');
+                    ao.className = 'alcohol-overlay';
+                    card.appendChild(ao);
+                }
+                // Remove fire overlay
+                const fo = card.querySelector('.fire-overlay');
+                if (fo) fo.remove();
+
+                if (roomSection) {
+                    roomSection.classList.add('alcohol-emergency');
+                    roomSection.classList.remove('fire-emergency');
+                }
+
+                triggerDangerAlert('alcohol', device.id, ds.displayValue, roomName);
+
+                // Update badge
+                let ab = card.querySelector('.alcohol-badge, .warning-badge');
+                if (!ab) {
+                    ab = document.createElement('div');
+                    ab.className = 'alcohol-badge';
+                    card.appendChild(ab);
+                }
+                ab.textContent = '⚠️ GAS!';
+
+                // ── OTHER WARNING (temp high etc) ─────────────────
+            } else if (ds.warning) {
+                card.classList.add('sensor', 'warning');
+                card.classList.remove('safe', 'fire-warning', 'alcohol-warning', 'temp-normal');
+                const fo = card.querySelector('.fire-overlay');
+                if (fo) fo.remove();
+                const ao = card.querySelector('.alcohol-overlay');
+                if (ao) ao.remove();
+
+                // ── SAFE ──────────────────────────────────────────
+            } else {
+                card.classList.add('safe');
+                card.classList.remove('warning', 'fire-warning', 'alcohol-warning', 'temp-normal');
+                const fo = card.querySelector('.fire-overlay');
+                if (fo) fo.remove();
+                const ao = card.querySelector('.alcohol-overlay');
+                if (ao) ao.remove();
+
+                // Remove danger alerts for this device
+                clearDangerAlert(device.id);
+
+                // Remove room emergency class if no other fire/alcohol cards remain
+                if (roomSection) {
+                    const hasFire = roomSection.querySelector('.device-card.fire-warning');
+                    const hasAlcohol = roomSection.querySelector('.device-card.alcohol-warning');
+                    if (!hasFire) roomSection.classList.remove('fire-emergency');
+                    if (!hasAlcohol) roomSection.classList.remove('alcohol-emergency');
+                }
+
+                // Remove badges
+                card.querySelectorAll('.warning-badge, .alcohol-badge').forEach(b => b.remove());
+            }
+        }
+
+        /* ── CORE API ── */
+        async function fetchRooms() { const r = await fetch(`${API_BASE}/rooms`); if (!r.ok) throw new Error(); return r.json(); }
+        async function fetchAllDevices() { try { const r = await fetch(`${API_BASE}/devices`); if (!r.ok) throw new Error(); return r.json(); } catch { return []; } }
+
+        /* ── DEVICE HELPERS ── */
+        function isSensor(device) { const kw = ['temperature', 'humidity', 'motion', 'smoke', 'fire', 'gas', 'water', 'leak', 'co2', 'air', 'sensor', 'detector', 'alert', 'level', 'thermostat']; if (device.is_sensor === true) return true; const t = (device.type || '').toLowerCase(), n = (device.name || '').toLowerCase(); return kw.some(k => t.includes(k) || n.includes(k)); }
+        function isControllableDoorWindow(device) { const types = ['door', 'window', 'curtain', 'blind', 'garage', 'gate', 'shutter']; const t = (device.type || '').toLowerCase(), n = (device.name || '').toLowerCase(); return types.some(k => t.includes(k) || n.includes(k)); }
+        function isBathroomDevice(device) { const types = ['shower', 'heater', 'mirror']; const t = (device.type || '').toLowerCase(), n = (device.name || '').toLowerCase(); return types.some(k => t.includes(k) || n.includes(k)); }
+        function getBathroomLabel(name, type, state) { const t = type.toLowerCase(), n = name.toLowerCase(); if (t.includes('shower') || n.includes('shower')) return state === 'ON' ? 'RUNNING' : 'OFF'; if (t.includes('heater') || n.includes('heater')) return state === 'ON' ? 'HEATING' : 'OFF'; if (t.includes('mirror') || n.includes('mirror')) return state === 'ON' ? 'ACTIVE' : 'OFF'; return state; }
+
+        /* ══════════════════════════════════════════════════════
+           getDeviceState — THE KEY FIX IS HERE
+           
+           ESP32 sends for fire:    "243|CRITICAL|FIRE DETECTED"
+           ESP32 sends for alcohol: "1500|45%|HIGH|WARNING|ALCOHOL DETECTED"
+           
+           BUG WAS: checking parts[0] for 'FIRE' → "243" never matches
+           FIX:     check parts[2] (the status string at index 2)
+           
+           BUG WAS: alcohol/gas detection only on type 'gas'|'smoke'
+           FIX:     also check sensor_value for 'ALCOHOL', 'DANGEROUS', 'HIGH'
+                    and check name for 'mq', 'alcohol', 'air quality'
+        ══════════════════════════════════════════════════════ */
+        function getDeviceState(device) {
+            const state = device.current_state || device.state || 'OFF';
+            const type = (device.type || '').toLowerCase();
+            const name = (device.name || '').toLowerCase();
+            const sv = device.sensor_value || '';
+
+            if (device.id === 17) return { displayValue: state === 'ON' ? 'OPEN' : 'CLOSED', rawState: state, isSensor: false, controllable: true, warning: false, isFire: false, alcoholWarning: false, badgeType: null };
+            if (!device.is_sensor && !isSensor(device)) {
+                if (isControllableDoorWindow(device)) return { displayValue: state === 'ON' ? 'OPEN' : 'CLOSED', rawState: state, isSensor: false, controllable: true, warning: false, isFire: false, alcoholWarning: false, badgeType: null };
+                if (isBathroomDevice(device)) return { displayValue: getBathroomLabel(device.name, device.type, state), rawState: state, isSensor: false, controllable: true, warning: false, isFire: false, alcoholWarning: false, badgeType: null };
+                return { displayValue: state, rawState: state, isSensor: false, controllable: true, warning: false, isFire: false, alcoholWarning: false, badgeType: null };
+            }
+
+            if (device.is_sensor || isSensor(device)) {
+
+                // ── TEMPERATURE ───────────────────────────────────────────────
+                if (type.includes('temperature') || name.includes('temperature')) {
+                    const m = sv.match(/(\d+\.?\d*)/);
+                    if (m) { const v = parseFloat(m[1]); let bt = v < 18 ? 'low' : v > 28 ? 'high' : 'normal'; let dv = sv; if (!sv.includes('°C') && !sv.includes('°F')) dv = `${v}°C`; return { displayValue: dv, rawState: bt.toUpperCase(), isSensor: true, controllable: false, warning: bt === 'high', isFire: false, alcoholWarning: false, badgeType: bt }; }
+                    return { displayValue: sv || '--°C', rawState: 'NORMAL', isSensor: true, controllable: false, warning: false, isFire: false, alcoholWarning: false, badgeType: 'normal' };
+                }
+
+                // ── FIRE SENSOR ───────────────────────────────────────────────
+                // ESP32 format: "rawValue|DETAILED|STATUS"
+                // e.g.          "243|CRITICAL|FIRE DETECTED"
+                //               "1200|NORMAL|NO FIRE"
+                if (type.includes('fire') || name.includes('fire') || name.includes('flame')) {
+                    const parts = sv.split('|');
+                    // ▶ FIX: status is at parts[2], NOT parts[0]
+                    const statusStr = (parts[2] || parts[0] || sv).toUpperCase();
+                    const detailStr = (parts[1] || '').toUpperCase();
+                    const isFireNow = statusStr.includes('FIRE') && !statusStr.includes('NO FIRE') && !statusStr.includes('NO_FIRE');
+                    const isWarning = !isFireNow && (detailStr.includes('WARNING') || detailStr.includes('CAUTION') || statusStr.includes('WARNING'));
+                    // Display: show the human-readable status, not the raw number
+                    const display = isFireNow ? '🔥 ' + statusStr : (isWarning ? '⚠️ ' + detailStr : (detailStr || statusStr || sv));
+                    return {
+                        displayValue: display,
+                        rawState: statusStr,
+                        isSensor: true,
+                        controllable: false,
+                        warning: isFireNow || isWarning,
+                        isFire: isFireNow,
+                        alcoholWarning: false,
+                        badgeType: isFireNow ? 'warning' : (isWarning ? 'warning' : 'normal')
+                    };
+                }
+
+                // ── GAS / ALCOHOL SENSOR (MQ-3) ───────────────────────────────
+                // ESP32 format: "rawValue|percentage%|STATUS|DETAILED|GAS_TYPE"
+                // e.g.          "1500|45%|HIGH|WARNING|ALCOHOL DETECTED"
+                //               "200|5%|GOOD|NORMAL|CLEAN AIR"
+                // ▶ FIX: detect by name containing 'mq','alcohol','air quality'
+                //         OR by type containing 'gas','smoke','air'
+                //         OR by the sensor_value itself containing alcohol/gas keywords
+                const isAlcoholSensor = (
+                    type.includes('gas') || type.includes('smoke') || type.includes('air') ||
+                    name.includes('mq') || name.includes('alcohol') || name.includes('air quality') ||
+                    name.includes('gas') || name.includes('smoke')
+                );
+                const svHasAlcohol = (
+                    sv.includes('ALCOHOL') || sv.includes('GAS LEAK') ||
+                    sv.includes('DANGEROUS') || sv.includes('HIGH ALCOHOL')
+                );
+
+                if (isAlcoholSensor || svHasAlcohol) {
+                    const parts = sv.split('|');
+                    // parts: [rawValue, percentage%, STATUS, DETAILED, GAS_TYPE]
+                    const rawVal = parseInt(parts[0]) || 0;
+                    const pctStr = parts[1] || '';
+                    const status = (parts[2] || '').toUpperCase();   // GOOD/LOW/MODERATE/HIGH/DANGEROUS
+                    const detail = (parts[3] || '').toUpperCase();   // NORMAL/SLIGHT/ELEVATED/WARNING/CRITICAL
+                    const gasType = (parts[4] || sv).toUpperCase();   // CLEAN AIR/TRACE GASES/ALCOHOL DETECTED/…
+                    const isHighAlert = status === 'DANGEROUS' || status === 'HIGH' || detail === 'CRITICAL' || detail === 'WARNING';
+                    const isModerate = status === 'MODERATE' || detail === 'ELEVATED';
+                    // Display: percentage + gas type is most useful
+                    const display = pctStr ? `${pctStr} — ${gasType}` : (gasType || sv);
+                    return {
+                        displayValue: display,
+                        rawState: status || detail,
+                        isSensor: true,
+                        controllable: false,
+                        warning: isHighAlert,
+                        isFire: false,
+                        alcoholWarning: isHighAlert,
+                        badgeType: isHighAlert ? 'alcohol' : (isModerate ? 'moderate' : 'normal')
+                    };
+                }
+
+                // ── MOTION ───────────────────────────────────────────────────
+                if (type.includes('motion') || name.includes('motion')) {
+                    const a = sv.toLowerCase().includes('motion');
+                    return { displayValue: sv, rawState: a ? 'ACTIVE' : 'INACTIVE', isSensor: true, controllable: false, warning: false, isFire: false, alcoholWarning: false, badgeType: 'normal' };
+                }
+
+                // ── GENERIC SENSOR ────────────────────────────────────────────
+                return { displayValue: sv || 'Normal', rawState: 'NORMAL', isSensor: true, controllable: false, warning: false, isFire: false, alcoholWarning: false, badgeType: 'normal' };
+            }
+            return { displayValue: state, rawState: state, isSensor: false, controllable: true, warning: false, isFire: false, alcoholWarning: false, badgeType: null };
+        }
+
+        function getDevicesForRoom(roomId, roomName, allDevices) { if (!Array.isArray(allDevices)) return []; return allDevices.filter(d => { const did = d.room_id || d.roomId, dn = d.room || d.room_name; if (did && parseInt(did) === parseInt(roomId)) return true; if (dn && dn.toLowerCase() === roomName.toLowerCase()) return true; return false; }); }
+
+        function getDeviceIcon(type, name, sensor) {
+            const t = (type || '').toLowerCase(), n = (name || '').toLowerCase();
+            if (t.includes('shower') || n.includes('shower')) return 'mdi:shower-head';
+            if (t.includes('heater') || n.includes('heater')) return 'mdi:radiator';
+            if (t.includes('mirror') || n.includes('mirror')) return 'mdi:mirror';
+            if (t.includes('temperature') || n.includes('temperature')) return 'mdi:thermometer';
+            if (t.includes('fire') || n.includes('fire') || n.includes('flame')) return 'mdi:fire-alert';
+            if (t.includes('gas') || n.includes('gas') || n.includes('mq') || n.includes('alcohol')) return 'mdi:gas-cylinder';
+            if (t.includes('motion') || n.includes('motion')) return 'mdi:motion-sensor';
+            if (t.includes('door') || n.includes('door')) return 'mdi:door';
+            if (t.includes('window') || n.includes('window')) return 'mdi:window-open';
+            if (t.includes('smoke') || n.includes('smoke')) return 'mdi:smoke-detector';
+            if (t.includes('light') || n.includes('light')) return 'mdi:lightbulb';
+            if (t.includes('fan') || n.includes('fan')) return 'mdi:fan';
+            if (t.includes('ac') || n.includes('ac')) return 'mdi:air-conditioner';
+            if (t.includes('tv') || n.includes('tv')) return 'mdi:television';
+            if (t.includes('speaker') || n.includes('music') || n.includes('speaker')) return 'mdi:speaker';
+            if (t.includes('curtain') || n.includes('curtain')) return 'mdi:curtains';
+            if (t.includes('alarm') || n.includes('alarm')) return 'mdi:alarm';
+            if (t.includes('camera') || n.includes('camera')) return 'mdi:cctv';
+            if (t.includes('lock') || n.includes('lock')) return 'mdi:lock';
+            if (t.includes('air') || n.includes('air quality')) return 'mdi:air-filter';
+            return sensor ? 'mdi:sensor' : 'mdi:devices';
+        }
+        function getRoomIcon(name) { const n = name.toLowerCase(); if (n.includes('living')) return 'mdi:sofa'; if (n.includes('bed')) return 'mdi:bed'; if (n.includes('kitchen')) return 'mdi:chef-hat'; if (n.includes('bath')) return 'mdi:shower'; if (n.includes('garage')) return 'mdi:garage'; if (n.includes('kids') || n.includes('child')) return 'mdi:toy-brick'; if (n.includes('office')) return 'mdi:desk'; if (n.includes('dining')) return 'mdi:silverware'; return 'mdi:door'; }
+        function getBackgroundImage(name) { const map = { living: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7', bed: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85', kitchen: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136', bath: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a', garage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa', kids: 'https://images.unsplash.com/photo-1564078516393-cf04bd966897', office: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72', dining: 'https://images.unsplash.com/photo-1617806118233-18e1de247200' }; const n = name.toLowerCase(); for (const [k, url] of Object.entries(map)) if (n.includes(k)) return `${url}?auto=format&fit=crop&w=1920&q=80`; return 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1920&q=80'; }
+
+        /* ── RENDER DEVICES ── */
+        function renderDevices(devices, roomId, roomName) {
+            if (!devices || !devices.length) return '<div class="room-loading">NO DEVICES IN THIS ROOM</div>';
+            initializeRoomMusic(roomId, roomName);
+            return devices.map((device, idx) => {
+                const ds = getDeviceState(device);
+                const sensorDetected = ds.isSensor;
+                const isDW = isControllableDoorWindow(device);
+                const isClickable = !sensorDetected || isDW;
+                const dt = (device.type || '').toLowerCase(), dn = (device.name || '').toLowerCase();
+                if (dt.includes('speaker') || dn.includes('music')) return createMusicPlayerCard(device.id, device.name, roomId).outerHTML;
+                let cc = 'device-card '; let sd = ds.displayValue; let bh = '';
+                if (sensorDetected) {
+                    cc += 'sensor';
+                    // ── FIRE badge ──
+                    if (ds.isFire) {
+                        cc += ' fire-warning'; bh = `<div class="warning-badge">🔥 FIRE!</div>`;
+                        // ── ALCOHOL badge ──
+                    } else if (ds.alcoholWarning) {
+                        cc += ' alcohol-warning'; bh = `<div class="alcohol-badge">⚠️ GAS!</div>`;
+                    } else if (ds.badgeType) {
+                        if (ds.badgeType === 'low') { cc += ' temp-low'; bh = `<div class="temp-badge low">LOW</div>`; }
+                        else if (ds.badgeType === 'high') { cc += ' temp-high warning'; bh = `<div class="temp-badge high">HIGH</div>`; }
+                        else if (ds.badgeType === 'moderate') { cc += ' air-moderate'; bh = `<div class="sensor-badge normal">MODERATE</div>`; }
+                        else if (ds.badgeType === 'alcohol') { cc += ' alcohol-warning'; bh = `<div class="alcohol-badge">⚠️ GAS!</div>`; }
+                        else if (ds.badgeType === 'warning') { cc += ' warning'; bh = `<div class="sensor-badge warning">WARNING</div>`; }
+                        else { cc += ' temp-normal'; if (device.type?.includes('air') || device.name?.includes('Air')) bh = `<div class="sensor-badge normal">GOOD</div>`; else bh = `<div class="temp-badge normal">NORMAL</div>`; }
+                    } else if (ds.warning) { cc += ' warning'; bh = `<div class="sensor-badge warning">ALERT</div>`; }
+                    else { cc += ' safe'; }
+                } else { const isOn = ds.rawState === 'ON'; cc += isOn ? 'dev-on' : 'dev-off'; }
+                return `<div class="${cc}" style="--i:${idx}" data-device-id="${device.id}" ${isClickable ? `onclick="toggleDevice(${device.id},this)"` : ''}><div class="flash-overlay"></div>${bh}${sensorDetected && !bh ? '<div class="sensor-tag">SENSOR</div>' : ''}<div class="icon-wrap"><div class="icon-circle"><span class="iconify" data-icon="${device.icon || getDeviceIcon(device.type, device.name, sensorDetected)}"></span></div></div><div class="device-name">${device.name || 'Unknown'}</div><div class="state-pill">${sd}</div></div>`;
+            }).join('');
+        }
+
+        function updateRoomWithDevices(room, devices, isSceneUpdate = false) {
+            const section = document.getElementById(`room-${room.id}`); if (!section) return;
+            const grid = section.querySelector('.devices-grid'); const count = section.querySelector('.device-count');
+            if (grid) { const oldHtml = grid.innerHTML; const newHtml = renderDevices(devices, room.id, room.name); grid.innerHTML = newHtml; if (isSceneUpdate && oldHtml !== newHtml && typeof Iconify !== 'undefined') Iconify.scan(); }
+            if (count) count.textContent = `${devices.length} Smart Device${devices.length !== 1 ? 's' : ''}`;
+            devices.forEach(device => { if (device.is_sensor || isSensor(device)) startSensorRealtimeUpdates(room.id, device.id); });
+            setTimeout(() => updateFolderUI(room.id), 100);
+        }
+
+        /* ── LOAD ── */
+        async function loadRoomsWithDevices() {
+            const scroll = document.getElementById('roomsScroll'); const navDots = document.getElementById('navDots');
+            try {
+                const rooms = await fetchRooms();
+                if (!rooms || !rooms.length) { scroll.innerHTML = `<div class="error-message"><span class="iconify" data-icon="mdi:alert-circle" style="font-size:40px;"></span><h3>NO ROOMS FOUND</h3></div>`; return; }
+                scroll.innerHTML = ''; navDots.innerHTML = ''; roomIds = []; allRoomsData = rooms;
+                rooms.forEach((room, index) => {
+                    const roomId = `room-${room.id}`; roomIds.push(roomId);
+                    const section = document.createElement('section');
+                    section.className = `room-section ${index === 0 ? 'active' : ''}`;
+                    section.id = roomId;
+                    if (lastActiveSceneName) { const tc = getSceneThemeClass(lastActiveSceneName); if (tc && tc !== 'default') section.classList.add('scene-' + tc); }
+                    section.innerHTML = `
+                <div class="scene-banner${lastActiveSceneName ? ' visible ' + getSceneThemeClass(lastActiveSceneName) : ''}">
+                    <div class="sb-dot"></div>
+                    <span class="iconify sb-icon" data-icon="${getSceneIcon(lastActiveSceneName || '')}"></span>
+                    <span class="sb-text">${lastActiveSceneName ? lastActiveSceneName.toUpperCase() + ' ACTIVE' : ''}</span>
+                </div>
+                <div class="room-bg" style="background-image:url('${getBackgroundImage(room.name)}')"></div>
+                <div class="room-overlay">
+                    <div class="room-header">
+                        <div class="room-icon"><span class="iconify" data-icon="${getRoomIcon(room.name)}"></span></div>
+                        <div class="room-info">
+                            <h2 class="room-name">${room.name.toUpperCase()}</h2>
+                            <div class="room-status"><div class="status-dot"></div><span class="device-count">Loading devices...</span></div>
+                        </div>
+                        <button class="live-btn" onclick="openLive('${room.name}')"><span class="iconify" data-icon="mdi:cctv"></span>LIVE VIEW</button>
+                    </div>
+                    <div class="devices-section">
+                        <div class="devices-label">SMART DEVICES</div>
+                        <div class="devices-grid"><div class="room-loading"><span class="iconify" data-icon="mdi:loading" style="animation:spin 1s linear infinite;"></span>LOADING...</div></div>
+                    </div>
+                </div>`;
+                    scroll.appendChild(section);
+                    const dot = document.createElement('div'); dot.className = `nav-dot ${index === 0 ? 'active' : ''}`; dot.setAttribute('data-room', room.name.toUpperCase()); dot.addEventListener('click', () => goTo(roomId)); navDots.appendChild(dot);
+                });
+                const allDevices = await fetchAllDevices();
+                await storeCurrentDeviceStates();
+                rooms.forEach(room => { const devs = getDevicesForRoom(room.id, room.name, allDevices); updateRoomWithDevices(room, devs); });
+                setupScrollSync();
+                setTimeout(() => { document.getElementById('scrollHint').style.opacity = '0'; }, 4000);
+                showToast(`${rooms.length} ROOMS LOADED`, 'mdi:home-assistant');
+                try { const scenesR = await fetch(`${API_BASE}/scenes`); if (scenesR.ok) { const sc = await scenesR.json(); const active = sc.find(s => s.is_enabled === true); if (active) { lastActiveSceneId = active.id; lastActiveSceneName = active.name; applySceneThemeToRooms(active.name); } } } catch { }
+                sceneCheckInterval = setInterval(checkActiveScene, 2500);
+                if (typeof Iconify !== 'undefined') Iconify.scan();
+            } catch (error) {
+                console.error(error);
+                scroll.innerHTML = `<div class="error-message"><span class="iconify" data-icon="mdi:alert-circle" style="font-size:40px;"></span><h3>CONNECTION ERROR</h3><div class="error-details">${error.message}<br>Ensure FastAPI is running at: ${API_BASE}</div><button onclick="location.reload()" style="margin-top:20px;padding:12px 28px;background:linear-gradient(135deg,#1E4C7A,#0F3557);border:2px solid rgba(255,255,255,.15);border-radius:25px;color:white;font-family:'Orbitron',sans-serif;font-size:14px;font-weight:800;letter-spacing:2px;cursor:pointer;">↺ RETRY</button></div>`;
+            }
+        }
+
+        /* ── TOGGLE ── */
+        async function toggleDevice(deviceId, card) {
+            try {
+                const r = await fetch(`${API_BASE}/devices/${deviceId}/toggle`, { method: 'PUT', headers: { 'Content-Type': 'application/json' } });
+                if (!r.ok) throw new Error();
+                const data = await r.json();
+                const isOn = data.state === 'ON';
+                card.classList.toggle('dev-on', isOn); card.classList.toggle('dev-off', !isOn);
+                const pill = card.querySelector('.state-pill');
+                const dn = card.querySelector('.device-name').textContent.toLowerCase();
+                const isDW = ['window', 'door', 'curtain', 'blind', 'garage', 'gate'].some(k => dn.includes(k));
+                const isSh = dn.includes('shower'), isHt = dn.includes('heater'), isMr = dn.includes('mirror');
+                if (isDW) pill.textContent = isOn ? 'OPEN' : 'CLOSED';
+                else if (isSh) pill.textContent = isOn ? 'RUNNING' : 'OFF';
+                else if (isHt) pill.textContent = isOn ? 'HEATING' : 'OFF';
+                else if (isMr) pill.textContent = isOn ? 'ACTIVE' : 'OFF';
+                else pill.textContent = data.state;
+                const fl = card.querySelector('.flash-overlay'); fl.classList.remove('burst'); void fl.offsetWidth; fl.classList.add('burst');
+                card.classList.remove('wave-hit'); void card.offsetWidth; card.classList.add('wave-hit'); setTimeout(() => card.classList.remove('wave-hit'), 450);
+                card.style.transition = 'transform .16s cubic-bezier(.34,2,.64,1)'; card.style.transform = 'scale(1.1)';
+                setTimeout(() => { card.style.transform = ''; setTimeout(() => { card.style.transition = ''; }, 350); }, 150);
+                showToast(`${card.querySelector('.device-name').textContent} → ${pill.textContent}`, isOn ? 'mdi:power' : 'mdi:power-off');
+            } catch (err) { console.error(err); showToast('Failed to toggle device', 'mdi:alert'); }
+        }
+
+        /* ── UI HELPERS ── */
+        function openLive(room) { document.getElementById('modalTitle').querySelector('span:first-child').textContent = room.toUpperCase() + ' - LIVE'; document.getElementById('modalFeedText').textContent = `Live camera — ${room}`; document.getElementById('liveModal').classList.add('open'); }
+        function closeLive() { document.getElementById('liveModal').classList.remove('open'); }
+        function goTo(roomId) { document.getElementById(roomId).scrollIntoView({ behavior: 'smooth' }); updateDots(roomId); }
+        function updateDots(roomId) { document.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('active', roomIds[i] === roomId)); }
+        function setupScrollSync() {
+            const scroll = document.getElementById('roomsScroll'); const hint = document.getElementById('scrollHint'); let hTimer;
+            scroll.addEventListener('scroll', () => { clearTimeout(hTimer); hint.style.opacity = '0'; const idx = Math.round(scroll.scrollTop / window.innerHeight); if (roomIds[idx]) updateDots(roomIds[idx]); hTimer = setTimeout(() => { hint.style.opacity = '1'; }, 3500); });
+            document.addEventListener('keydown', e => { const cur = [...document.querySelectorAll('.nav-dot')].findIndex(d => d.classList.contains('active')); if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); goTo(roomIds[(cur + 1) % roomIds.length]); } if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); goTo(roomIds[(cur - 1 + roomIds.length) % roomIds.length]); } if (e.key >= '1' && e.key <= '9' && roomIds[e.key - 1]) goTo(roomIds[e.key - 1]); if (e.key === 'Escape' && document.getElementById('dangerOverlay').style.display !== 'none') dismissDangerOverlay(); });
+        }
+        let tt;
+        function showToast(msg, icon = 'mdi:check') { const t = document.getElementById('toast'); t.innerHTML = `<span class="iconify" data-icon="${icon}"></span>${msg}`; t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)'; t.classList.remove('emergency'); clearTimeout(tt); tt = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(-25px)'; }, 3000); }
+        window.addEventListener('beforeunload', () => { Object.values(sensorUpdateIntervals).forEach(i => clearInterval(i)); if (sceneCheckInterval) clearInterval(sceneCheckInterval); });
+        document.addEventListener('DOMContentLoaded', () => {
+            loadRoomsWithDevices();
+            document.getElementById('liveModal').addEventListener('click', e => { if (e.target === document.getElementById('liveModal')) closeLive(); });
+        });
+    </script>
+</body>
+
+</html>
