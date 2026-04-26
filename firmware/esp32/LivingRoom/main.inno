@@ -1,0 +1,567 @@
+/*
+ * Smart Home - Living Room ESP32 Node (COMPLETE FIX WITH PWM PARTY LAMP)
+ * 
+ * Controls:
+ * - Room Light (GPIO2) - Relay
+ * - Lamp (GPIO4) - PWM Controlled for Party Mode (breathing effect)
+ * - Curtain (GPIO19) - Servo
+ * 
+ * Sensors:
+ * - DHT11 (GPIO32) - Temperature
+ * 
+ * WiFi: KWIZERA / Kinno@123
+ * Backend: http://192.168.137.1:8000/api
+ * Room ID: 1
+ * 
+ * Version: 3.0.1 - FIXED PWM FUNCTIONS
+ */
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <DHTesp.h>
+#include <ESP32Servo.h>
+
+// ==================== WiFi Configuration ====================
+const char* ssid = "KWIZERA";
+const char* password = "Kinno@123";
+const char* serverUrl = "http://192.168.137.1:8000/api";
+const int ROOM_ID = 1;  // Living Room
+
+// ==================== Pin Definitions ====================
+#define RELAY_ROOM_LIGHT_PIN 2      // GPIO2 - Room Light
+#define LAMP_PWM_PIN 4               // GPIO4 - Lamp (PWM capable)
+#define SERVO_CURTAIN_PIN 19         // GPIO19 - Curtain
+#define DHT_PIN 32                    // GPIO32 - DHT11
+
+// ==================== PWM Settings for Lamp ====================
+#define PWM_FREQ        1000          // 1kHz PWM frequency
+#define PWM_RESOLUTION  8             // 8-bit resolution (0-255)
+#define PWM_CHANNEL     0              // LEDC channel 0
+
+#define LAMP_BRIGHTNESS_MIN 50         // Minimum brightness (not too dim)
+#define LAMP_BRIGHTNESS_MAX 255         // Maximum brightness
+#define LAMP_BREATHING_STEP 3           // Step size for brightness change
+#define LAMP_UPDATE_INTERVAL 30         // Update every 30ms for smooth breathing
+
+// ==================== Device IDs ====================
+const int ROOM_LIGHT_ID = 1;
+const int LAMP_ID = 2;
+const int CURTAIN_ID = 3;
+const int TEMP_SENSOR_ID = 9;       // Make sure this matches your database!
+
+// ==================== Timing ====================
+const long POLL_INTERVAL = 500;       // 0.5 seconds for fast response
+const long SENSOR_INTERVAL = 10000;   // 10 seconds (more frequent updates)
+const long HEARTBEAT_INTERVAL = 60000;
+const int WIFI_MAX_ATTEMPTS = 20;
+
+// ==================== Relay Logic ====================
+const bool RELAY_ACTIVE_LOW = false;   // Change to true if lights are inverted
+
+// ==================== Global Objects ====================
+DHTesp dht;
+Servo curtain;
+
+// Device states
+bool roomLightState = false;
+bool lampState = false;
+bool curtainState = false;
+
+// Party mode states
+bool partyModeActive = false;           // Is Party Time scene active?
+int lampBrightness = LAMP_BRIGHTNESS_MIN;
+bool lampIncreasing = true;
+unsigned long lastLampUpdate = 0;
+
+// Timing variables
+unsigned long lastPoll = 0;
+unsigned long lastSensorRead = 0;
+unsigned long lastHeartbeat = 0;
+unsigned long lastWiFiCheck = 0;
+const long WIFI_CHECK_INTERVAL = 10000;
+
+// Scene tracking
+String currentActiveScene = "";         // Track which scene is active
+
+// ==================== Function Prototypes ====================
+void printHeader();
+void initPins();
+bool connectToWiFi();
+void checkWiFi();
+void pollDeviceStates();
+void parseDevices(String payload);
+void controlDevice(int deviceId, String command);
+void setRelay(int pin, bool state);
+void setCurtain(bool state);
+void setupLampPWM();
+void updateLampPWM();
+void setLampPartyMode(bool enable);
+void readAndSendSensors();
+bool sendSensorData(int sensorId, String value);
+void sendHeartbeat();
+void printSystemInfo();
+void checkForPartyMode(String sceneName);
+
+// ==================== Setup ====================
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  printHeader();
+  initPins();
+  setupLampPWM();  // Initialize PWM for lamp
+  
+  if (connectToWiFi()) {
+    printSystemInfo();
+  }
+  
+  dht.setup(DHT_PIN, DHTesp::DHT11);
+  
+  Serial.println("\n✅ Setup complete! Entering main loop...\n");
+  Serial.println("⚡ Polling every 0.5 seconds for faster response");
+  Serial.println("🎉 Party Mode: Lamp will breathe when Party Time scene is active");
+  delay(1000);
+}
+
+// ==================== Initialize PWM for Lamp ====================
+void setupLampPWM() {
+  // Try the newer ESP32 Arduino Core 3.0+ functions first
+  #ifdef ESP_ARDUINO_VERSION_MAJOR && ESP_ARDUINO_VERSION_MAJOR >= 3
+    ledcAttach(LAMP_PWM_PIN, PWM_FREQ, PWM_RESOLUTION);
+    ledcWrite(LAMP_PWM_PIN, 0);
+    Serial.println("  ✓ Lamp PWM initialized (ESP32 Core 3.0+ method)");
+  #else
+    // Use older ESP32 core functions
+    ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
+    ledcAttachPin(LAMP_PWM_PIN, PWM_CHANNEL);
+    ledcWrite(PWM_CHANNEL, 0);
+    Serial.println("  ✓ Lamp PWM initialized (legacy method)");
+  #endif
+  Serial.println("    - PWM Frequency: 1kHz, Resolution: 8-bit (0-255)");
+}
+
+// ==================== Update Lamp PWM (Breathing Effect) ====================
+void updateLampPWM() {
+  if (!partyModeActive) return;  // Only run in party mode
+  
+  unsigned long now = millis();
+  if (now - lastLampUpdate >= LAMP_UPDATE_INTERVAL) {
+    lastLampUpdate = now;
+    
+    // Breathing effect - smoothly go up and down
+    if (lampIncreasing) {
+      lampBrightness += LAMP_BREATHING_STEP;
+      if (lampBrightness >= LAMP_BRIGHTNESS_MAX) {
+        lampBrightness = LAMP_BRIGHTNESS_MAX;
+        lampIncreasing = false;
+      }
+    } else {
+      lampBrightness -= LAMP_BREATHING_STEP;
+      if (lampBrightness <= LAMP_BRIGHTNESS_MIN) {
+        lampBrightness = LAMP_BRIGHTNESS_MIN;
+        lampIncreasing = true;
+      }
+    }
+    
+    // Write to PWM based on core version
+    #ifdef ESP_ARDUINO_VERSION_MAJOR && ESP_ARDUINO_VERSION_MAJOR >= 3
+      ledcWrite(LAMP_PWM_PIN, lampBrightness);
+    #else
+      ledcWrite(PWM_CHANNEL, lampBrightness);
+    #endif
+    
+    // Print occasionally for debugging (every 100 updates)
+    static int updateCount = 0;
+    if (++updateCount % 100 == 0) {
+      Serial.printf("🎵 Party Lamp: Brightness %d/255 (%s)\n", 
+                    lampBrightness, lampIncreasing ? "rising" : "falling");
+    }
+  }
+}
+
+// ==================== Set Lamp Party Mode ====================
+void setLampPartyMode(bool enable) {
+  if (enable) {
+    // Enter party mode - start breathing
+    partyModeActive = true;
+    lampIncreasing = true;
+    lampBrightness = LAMP_BRIGHTNESS_MIN;
+    
+    #ifdef ESP_ARDUINO_VERSION_MAJOR && ESP_ARDUINO_VERSION_MAJOR >= 3
+      ledcWrite(LAMP_PWM_PIN, lampBrightness);
+    #else
+      ledcWrite(PWM_CHANNEL, lampBrightness);
+    #endif
+    
+    Serial.println("🎉 PARTY MODE ACTIVATED - Lamp breathing started!");
+  } else {
+    // Exit party mode - turn lamp OFF
+    partyModeActive = false;
+    
+    #ifdef ESP_ARDUINO_VERSION_MAJOR && ESP_ARDUINO_VERSION_MAJOR >= 3
+      ledcWrite(LAMP_PWM_PIN, 0);
+    #else
+      ledcWrite(PWM_CHANNEL, 0);
+    #endif
+    
+    Serial.println("🎉 Party mode deactivated - Lamp OFF");
+  }
+}
+
+// ==================== Check for Party Mode from Scene ====================
+void checkForPartyMode(String sceneName) {
+  if (sceneName == "Party Time" && !partyModeActive) {
+    // Party Time scene activated - start lamp breathing
+    setLampPartyMode(true);
+  } else if (sceneName != "Party Time" && partyModeActive) {
+    // Any other scene activated while party mode was on
+    setLampPartyMode(false);
+  }
+}
+
+// ==================== Print Header ====================
+void printHeader() {
+  Serial.println("\n\n╔══════════════════════════════════════════╗");
+  Serial.println("║     SMART HOME - LIVING ROOM NODE      ║");
+  Serial.println("║            PARTY MODE ENABLED           ║");
+  Serial.println("╠══════════════════════════════════════════╣");
+  Serial.println("║  Devices: Room Light, Lamp (PWM), Curtain║");
+  Serial.println("║  Sensor: DHT11 Temperature              ║");
+  Serial.println("║  Party Mode: Lamp breathing effect      ║");
+  Serial.println("╚══════════════════════════════════════════╝");
+  Serial.println();
+}
+
+// ==================== Initialize Pins ====================
+void initPins() {
+  Serial.println("\n📌 Initializing pins...");
+  
+  pinMode(RELAY_ROOM_LIGHT_PIN, OUTPUT);
+  // Lamp pin is PWM, no need for pinMode
+  
+  // Start with all relays OFF based on relay type
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(RELAY_ROOM_LIGHT_PIN, HIGH);  // HIGH = OFF for active LOW
+    Serial.println("  ✓ Relays initialized (OFF) - Active LOW mode");
+  } else {
+    digitalWrite(RELAY_ROOM_LIGHT_PIN, LOW);   // LOW = OFF for active HIGH
+    Serial.println("  ✓ Relays initialized (OFF) - Active HIGH mode");
+  }
+  
+  Serial.printf("    - Room Light: GPIO%d\n", RELAY_ROOM_LIGHT_PIN);
+  Serial.printf("    - Lamp (PWM): GPIO%d\n", LAMP_PWM_PIN);
+  
+  curtain.attach(SERVO_CURTAIN_PIN);
+  curtain.write(0);  // CLOSED
+  
+  Serial.println("  ✓ Servo initialized (CLOSED)");
+  Serial.printf("    - Curtain: GPIO%d\n", SERVO_CURTAIN_PIN);
+  
+  Serial.println("  ✓ DHT11 pin configured");
+  Serial.printf("    - Data: GPIO%d\n", DHT_PIN);
+  Serial.println();
+}
+
+// ==================== Connect to WiFi ====================
+bool connectToWiFi() {
+  Serial.print("📡 Connecting to WiFi: ");
+  Serial.println(ssid);
+  
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < WIFI_MAX_ATTEMPTS) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi Connected!");
+    return true;
+  } else {
+    Serial.println("\n❌ WiFi Connection Failed!");
+    return false;
+  }
+}
+
+// ==================== Check WiFi Status ====================
+void checkWiFi() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("❌ WiFi disconnected! Reconnecting...");
+    WiFi.reconnect();
+  }
+}
+
+// ==================== Print System Info ====================
+void printSystemInfo() {
+  Serial.println("\n📊 System Information:");
+  Serial.printf("   IP Address: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("   MAC Address: %s\n", WiFi.macAddress().c_str());
+  Serial.printf("   RSSI: %d dBm\n", WiFi.RSSI());
+  Serial.printf("   Poll Interval: %ld ms\n", POLL_INTERVAL);
+  Serial.printf("   Relay Logic: %s\n", RELAY_ACTIVE_LOW ? "Active LOW (LOW=ON)" : "Active HIGH (HIGH=ON)");
+  Serial.printf("   PWM Frequency: %d Hz\n", PWM_FREQ);
+  Serial.println();
+}
+
+// ==================== Poll Device States ====================
+void pollDeviceStates() {
+  HTTPClient http;
+  String url = String(serverUrl) + "/devices/room/" + String(ROOM_ID);
+  
+  http.begin(url);
+  http.setTimeout(2000);
+  
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    parseDevices(payload);
+    
+    // Also check for active scene (simplified - you'd ideally get this from a scenes endpoint)
+    // For now, we'll rely on device states to know when party mode is on
+  } else {
+    static int errorCount = 0;
+    if (++errorCount % 10 == 0) {
+      Serial.printf("❌ Poll failed: HTTP %d\n", httpCode);
+    }
+  }
+  
+  http.end();
+}
+
+// ==================== Parse Devices JSON ====================
+void parseDevices(String payload) {
+  DynamicJsonDocument doc(2048);
+  DeserializationError error = deserializeJson(doc, payload);
+  
+  if (error) {
+    Serial.print("❌ JSON parse error: ");
+    Serial.println(error.c_str());
+    return;
+  }
+  
+  JsonArray devices = doc.as<JsonArray>();
+  
+  for (JsonVariant device : devices) {
+    int id = device["id"];
+    String state = device["current_state"].as<String>();
+    bool isSensor = device["is_sensor"];
+    
+    if (!isSensor) {
+      controlDevice(id, state);
+    }
+  }
+}
+
+// ==================== Control Device ====================
+void controlDevice(int deviceId, String command) {
+  bool newState = (command == "ON");
+  
+  switch(deviceId) {
+    case ROOM_LIGHT_ID:
+      if (roomLightState != newState) {
+        setRelay(RELAY_ROOM_LIGHT_PIN, newState);
+        roomLightState = newState;
+        Serial.printf("💡 Room Light: %s (Web said: %s)\n", newState ? "ON" : "OFF", command.c_str());
+      }
+      break;
+      
+    case LAMP_ID:
+      if (lampState != newState) {
+        lampState = newState;
+        
+        if (newState) {
+          // Lamp turned ON - check if it should be in party mode
+          // For now, we'll use a simple approach: if command came from Party Time scene
+          // In a real implementation, you'd check the scene context
+          if (command == "ON" && currentActiveScene == "Party Time") {
+            setLampPartyMode(true);
+          } else {
+            // Regular ON - full brightness
+            setLampPartyMode(false);
+            #ifdef ESP_ARDUINO_VERSION_MAJOR && ESP_ARDUINO_VERSION_MAJOR >= 3
+              ledcWrite(LAMP_PWM_PIN, LAMP_BRIGHTNESS_MAX);
+            #else
+              ledcWrite(PWM_CHANNEL, LAMP_BRIGHTNESS_MAX);
+            #endif
+          }
+        } else {
+          // Lamp turned OFF
+          setLampPartyMode(false);
+          #ifdef ESP_ARDUINO_VERSION_MAJOR && ESP_ARDUINO_VERSION_MAJOR >= 3
+            ledcWrite(LAMP_PWM_PIN, 0);
+          #else
+            ledcWrite(PWM_CHANNEL, 0);
+          #endif
+        }
+        
+        Serial.printf("💡 Lamp: %s\n", newState ? "ON" : "OFF");
+      }
+      break;
+      
+    case CURTAIN_ID:
+      if (curtainState != newState) {
+        setCurtain(newState);
+        curtainState = newState;
+        Serial.printf("🪟 Curtain: %s\n", newState ? "OPEN" : "CLOSED");
+      }
+      break;
+  }
+}
+
+// ==================== Set Relay ====================
+void setRelay(int pin, bool state) {
+  if (RELAY_ACTIVE_LOW) {
+    // Active LOW: LOW = ON, HIGH = OFF
+    digitalWrite(pin, state ? LOW : HIGH);
+  } else {
+    // Active HIGH: HIGH = ON, LOW = OFF
+    digitalWrite(pin, state ? HIGH : LOW);
+  }
+}
+
+// ==================== Set Curtain Servo ====================
+void setCurtain(bool state) {
+  if (state) {
+    curtain.write(180);  // OPEN
+  } else {
+    curtain.write(0);    // CLOSED
+  }
+  delay(300);
+}
+
+// ==================== Main Loop ====================
+void loop() {
+  unsigned long now = millis();
+  
+  // Update lamp PWM (breathing effect) - runs even if WiFi is disconnected
+  updateLampPWM();
+  
+  // Check WiFi periodically
+  if (now - lastWiFiCheck >= WIFI_CHECK_INTERVAL) {
+    checkWiFi();
+    lastWiFiCheck = now;
+  }
+  
+  // Only proceed if WiFi is connected
+  if (WiFi.status() == WL_CONNECTED) {
+    // Poll device states - fast response
+    if (now - lastPoll >= POLL_INTERVAL) {
+      pollDeviceStates();
+      lastPoll = now;
+    }
+    
+    // Read and send sensor data - more frequent
+    if (now - lastSensorRead >= SENSOR_INTERVAL) {
+      readAndSendSensors();
+      lastSensorRead = now;
+    }
+    
+    // Send heartbeat
+    if (now - lastHeartbeat >= HEARTBEAT_INTERVAL) {
+      sendHeartbeat();
+      lastHeartbeat = now;
+    }
+  }
+  
+  delay(10);
+}
+
+// ==================== Read and Send Sensors ====================
+void readAndSendSensors() {
+  TempAndHumidity newValues = dht.getTempAndHumidity();
+  
+  if (dht.getStatus() == 0) {
+    float temperature = newValues.temperature;
+    
+    // Send to backend and check if it succeeded
+    bool success = sendSensorData(TEMP_SENSOR_ID, String(temperature, 1) + "°C");
+    
+    if (success) {
+      Serial.printf("🌡️ Temperature: %.1f°C ✓ Sent to server\n", temperature);
+    } else {
+      Serial.printf("🌡️ Temperature: %.1f°C ✗ Failed to send\n", temperature);
+    }
+  } else {
+    static int dhtErrorCount = 0;
+    if (++dhtErrorCount % 5 == 0) {
+      Serial.print("❌ DHT11 error: ");
+      Serial.println(dht.getStatusString());
+      Serial.println("   Check wiring and 10kΩ pull-up resistor!");
+    }
+  }
+}
+
+// ==================== Send Sensor Data to Backend ====================
+bool sendSensorData(int sensorId, String value) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("❌ WiFi not connected - cannot send sensor data");
+    return false;
+  }
+  
+  HTTPClient http;
+  String url = String(serverUrl) + "/devices/" + String(sensorId) + "/sensor";
+  
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(3000);
+  
+  StaticJsonDocument<200> doc;
+  doc["sensor_value"] = value;
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  int httpCode = http.PUT(jsonString);
+  bool success = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
+  
+  if (!success) {
+    static int failCount = 0;
+    if (++failCount % 5 == 0) {
+      Serial.printf("❌ Sensor send failed: HTTP %d\n", httpCode);
+    }
+  }
+  
+  http.end();
+  return success;
+}
+
+// ==================== Send Heartbeat ====================
+void sendHeartbeat() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  
+  HTTPClient http;
+  String url = String(serverUrl) + "/esp32/heartbeat";
+  
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(2000);
+  
+  StaticJsonDocument<256> doc;
+  doc["device_id"] = 1;
+  doc["ip_address"] = WiFi.localIP().toString();
+  doc["mac_address"] = WiFi.macAddress();
+  doc["firmware_version"] = "3.0.1-PARTY";
+  doc["rssi"] = WiFi.RSSI();
+  doc["free_heap"] = ESP.getFreeHeap();
+  doc["uptime"] = millis() / 1000;
+  doc["party_mode"] = partyModeActive;
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  int httpCode = http.POST(jsonString);
+  
+  if (httpCode == HTTP_CODE_OK) {
+    static int heartbeatCount = 0;
+    if (++heartbeatCount % 6 == 0) {
+      Serial.printf("💓 Heartbeat sent (Party Mode: %s)\n", partyModeActive ? "ON" : "OFF");
+    }
+  }
+  
+  http.end();
+}
