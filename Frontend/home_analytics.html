@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - Remote Home Control</title>
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background: linear-gradient(180deg, #0a1a2f 0%, #0f2847 50%, #1a3d6e 100%);
+            background-attachment: fixed;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 100px;
+            /* IMPORTANT: Space for fixed bottom nav */
+        }
+
+        /* ── HEADER ──────────────────────────────── */
+        .header {
+            background: linear-gradient(180deg, #1e4d8a 0%, #153a66 100%);
+            padding: clamp(18px, 3vw, 32px) clamp(16px, 4vw, 48px);
+            text-align: center;
+            position: relative;
+            flex-shrink: 0;
+            z-index: 10;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            color: #fff;
+            font-size: clamp(1.2em, 3.5vw, 2.2em);
+            font-weight: 700;
+            letter-spacing: clamp(2px, 0.6vw, 4px);
+            margin-bottom: 5px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .header h1 .iconify {
+            font-size: clamp(1.2em, 3vw, 1.8em);
+            color: #4da6ff;
+            filter: drop-shadow(0 0 10px rgba(77, 166, 255, 0.5));
+        }
+
+        .header p {
+            color: #fff;
+            font-size: clamp(0.65em, 1.2vw, 0.9em);
+            letter-spacing: clamp(1px, 0.4vw, 2px);
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+
+        /* ── TIME RANGE CONTROLS ─────────────────── */
+        .time-controls {
+            background: rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(10px);
+            padding: clamp(12px, 2vw, 20px) clamp(16px, 3vw, 32px);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .filter-section {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: clamp(10px, 1.5vw, 20px);
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 30px;
+            padding: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .filter-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-label .iconify {
+            font-size: 16px;
+        }
+
+        .filter-select {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 25px;
+            padding: 8px 16px;
+            color: white;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .filter-select:hover {
+            background: rgba(30, 77, 138, 0.6);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .filter-select option {
+            background: #0f2847;
+            color: white;
+        }
+
+        .time-range-buttons {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 30px;
+            padding: 4px;
+        }
+
+        .time-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .time-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .time-btn.active {
+            background: #1e5fbf;
+            color: white;
+            box-shadow: 0 4px 12px rgba(30, 95, 191, 0.4);
+        }
+
+        .date-picker {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 30px;
+            padding: 4px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .date-input {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 6px 12px;
+            color: white;
+            font-size: 0.8em;
+        }
+
+        /* ── MAIN CONTENT ────────────────────────── */
+        .main-content {
+            flex: 1;
+            padding: clamp(20px, 3vw, 40px) clamp(16px, 4vw, 60px) clamp(30px, 5vw, 50px);
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            position: relative;
+            z-index: 1;
+            padding-bottom: 20px;
+        }
+
+        /* ── KPI CARDS ───────────────────────────── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 10px;
+        }
+
+        .kpi-card {
+            background: rgba(15, 40, 71, 0.7);
+            backdrop-filter: blur(15px);
+            border-radius: 24px;
+            padding: 24px 20px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            transition: left 0.8s ease;
+        }
+
+        .kpi-card:hover::before {
+            left: 100%;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .kpi-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(30, 95, 191, 0.3);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .kpi-icon .iconify {
+            font-size: 32px;
+            color: #4da6ff;
+        }
+
+        .kpi-icon.uptime .iconify {
+            color: #4dff88;
+        }
+
+        .kpi-icon.alerts .iconify {
+            color: #ff6b6b;
+        }
+
+        .kpi-icon.efficiency .iconify {
+            color: #ffd84a;
+        }
+
+        .kpi-info {
+            flex: 1;
+        }
+
+        .kpi-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .kpi-value {
+            color: white;
+            font-size: 2.2em;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .kpi-trend {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+
+        .trend-up {
+            color: #4dff88;
+        }
+
+        .trend-down {
+            color: #ff6b6b;
+        }
+
+        .trend-neutral {
+            color: #ffd84a;
+        }
+
+        /* ── REAL-TIME SNAPSHOT ──────────────────── */
+        .snapshot-section {
+            background: rgba(15, 40, 71, 0.6);
+            backdrop-filter: blur(15px);
+            border-radius: 28px;
+            padding: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-title .iconify {
+            font-size: 28px;
+            color: #4da6ff;
+        }
+
+        .section-title h2 {
+            color: white;
+            font-size: 1.4em;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .timestamp {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.85em;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 16px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .snapshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .snapshot-card {
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .snapshot-card:hover {
+            background: rgba(30, 77, 138, 0.3);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .snapshot-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(30, 95, 191, 0.2);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .snapshot-icon .iconify {
+            font-size: 24px;
+            color: #4da6ff;
+        }
+
+        .snapshot-details {
+            flex: 1;
+        }
+
+        .snapshot-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .snapshot-name {
+            color: white;
+            font-size: 1em;
+            font-weight: 700;
+        }
+
+        .device-status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-online {
+            background: rgba(0, 200, 80, 0.2);
+            color: #80ffaa;
+            border: 1px solid rgba(0, 200, 80, 0.3);
+        }
+
+        .status-offline {
+            background: rgba(100, 100, 100, 0.2);
+            color: #cccccc;
+            border: 1px solid rgba(150, 150, 150, 0.3);
+        }
+
+        .snapshot-reading {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .reading-value {
+            color: white;
+            font-size: 1.4em;
+            font-weight: 700;
+        }
+
+        .reading-unit {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8em;
+        }
+
+        .reading-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.75em;
+            margin-top: 4px;
+        }
+
+        /* ── CHARTS GRID ─────────────────────────── */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+        }
+
+        .chart-card {
+            background: rgba(15, 40, 71, 0.6);
+            backdrop-filter: blur(15px);
+            border-radius: 28px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-title .iconify {
+            font-size: 22px;
+            color: #4da6ff;
+        }
+
+        .chart-title h3 {
+            color: white;
+            font-size: 1.1em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .chart-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chart-legend {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75em;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        .canvas-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* ── ALERTS & ANOMALIES ──────────────────── */
+        .alerts-section {
+            background: rgba(15, 40, 71, 0.6);
+            backdrop-filter: blur(15px);
+            border-radius: 28px;
+            padding: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .alerts-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .alert-tab {
+            padding: 10px 24px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .alert-tab.active {
+            background: #1e5fbf;
+            color: white;
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 15px rgba(30, 95, 191, 0.4);
+        }
+
+        .alert-tab:hover {
+            background: rgba(30, 95, 191, 0.6);
+            color: white;
+        }
+
+        .alerts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            border-left: 4px solid;
+            transition: all 0.3s ease;
+        }
+
+        .alert-item:hover {
+            background: rgba(30, 77, 138, 0.3);
+            transform: translateX(5px);
+        }
+
+        .alert-item.critical {
+            border-left-color: #ff4444;
+        }
+
+        .alert-item.warning {
+            border-left-color: #ffbb33;
+        }
+
+        .alert-item.info {
+            border-left-color: #4da6ff;
+        }
+
+        .alert-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .alert-icon .iconify {
+            font-size: 22px;
+        }
+
+        .alert-icon.critical .iconify {
+            color: #ff4444;
+        }
+
+        .alert-icon.warning .iconify {
+            color: #ffbb33;
+        }
+
+        .alert-icon.info .iconify {
+            color: #4da6ff;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .alert-name {
+            color: white;
+            font-size: 1em;
+            font-weight: 700;
+        }
+
+        .alert-time {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.75em;
+        }
+
+        .alert-desc {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9em;
+            margin-bottom: 4px;
+        }
+
+        .alert-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 0.75em;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* ── INSIGHTS SECTION ────────────────────── */
+        .insights-section {
+            background: rgba(15, 40, 71, 0.6);
+            backdrop-filter: blur(15px);
+            border-radius: 28px;
+            padding: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .insight-card {
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 20px;
+            padding: 22px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .insight-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .insight-header .iconify {
+            font-size: 24px;
+            color: #4da6ff;
+        }
+
+        .insight-header h4 {
+            color: white;
+            font-size: 1em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .comparison-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .comparison-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85em;
+        }
+
+        .comparison-value {
+            color: white;
+            font-weight: 700;
+        }
+
+        .comparison-change {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+
+        .insight-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.85em;
+        }
+
+        .stat-value {
+            color: white;
+            font-weight: 700;
+            font-size: 1.1em;
+        }
+
+        /* ── FIXED BOTTOM NAVIGATION ─────────────── */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: clamp(12px, 2vw, 24px);
+            padding: clamp(14px, 2vw, 22px) clamp(20px, 4vw, 40px);
+            background: rgba(10, 26, 46, 0.98);
+            backdrop-filter: blur(20px);
+            border-top: 2px solid rgba(255, 255, 255, 0.15);
+            z-index: 9999;
+            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .nav-btn {
+            padding: clamp(14px, 1.8vw, 22px);
+            background: #1e4d8a;
+            border: none;
+            border-radius: 18px;
+            color: white;
+            font-size: clamp(0.85em, 1.2vw, 1.2em);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: clamp(1px, 0.3vw, 2px);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 1.2vw, 16px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+            border-radius: 50%;
+        }
+
+        .nav-btn:hover::after {
+            width: 600px;
+            height: 600px;
+        }
+
+        .nav-btn:hover {
+            transform: translateY(-6px) scale(1.05);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .nav-btn .iconify {
+            font-size: clamp(1.3em, 2vw, 1.8em);
+            transition: transform 0.4s ease;
+        }
+
+        .nav-btn:hover .iconify {
+            transform: scale(1.25) rotate(8deg);
+        }
+
+        .nav-btn.home {
+            background: linear-gradient(135deg, #1e5fbf 0%, #2570d9 100%);
+        }
+
+        .nav-btn.home:hover {
+            box-shadow: 0 12px 40px rgba(30, 95, 191, 0.7), 0 0 30px rgba(37, 112, 217, 0.5);
+        }
+
+        .nav-btn.rooms {
+            background: linear-gradient(135deg, #00a000 0%, #00c000 100%);
+        }
+
+        .nav-btn.rooms:hover {
+            box-shadow: 0 12px 40px rgba(0, 160, 0, 0.7), 0 0 30px rgba(0, 192, 0, 0.5);
+        }
+
+        .nav-btn.analytics {
+            background: linear-gradient(135deg, #9333ea 0%, #a855f7 100%);
+        }
+
+        .nav-btn.analytics:hover {
+            box-shadow: 0 12px 40px rgba(147, 51, 234, 0.7), 0 0 30px rgba(168, 85, 247, 0.5);
+        }
+
+        /* ── RESPONSIVE ──────────────────────────── */
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding-bottom: 90px;
+            }
+
+            .main-content {
+                padding: 16px 16px 20px;
+            }
+
+            .time-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                flex-wrap: wrap;
+            }
+
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .snapshot-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .bottom-nav {
+                padding: 12px 16px;
+                gap: 10px;
+            }
+
+            .nav-btn {
+                padding: 12px 10px;
+                font-size: 0.85em;
+            }
+
+            .nav-btn .iconify {
+                font-size: 1.3em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding-bottom: 80px;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .alert-item {
+                flex-wrap: wrap;
+            }
+
+            .bottom-nav {
+                padding: 10px 12px;
+                gap: 8px;
+            }
+
+            .nav-btn {
+                padding: 10px 8px;
+                font-size: 0.75em;
+            }
+
+            .nav-btn .iconify {
+                font-size: 1.2em;
+            }
+        }
+
+        /* ── TOAST ────────────────────────────────── */
+        #toast {
+            position: fixed;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-15px);
+            background: rgba(8, 22, 48, 0.98);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 50px;
+            font-size: 0.9em;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(15px);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            white-space: nowrap;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #toast .iconify {
+            font-size: 1.3em;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="toast">
+        <span class="iconify" data-icon="mdi:check-circle"></span>
+        <span id="toastMsg">Analytics Dashboard Ready</span>
+    </div>
+
+    <div class="header">
+        <h1>
+            <span class="iconify" data-icon="mdi:chart-line"></span>
+            SYSTEM ANALYTICS
+        </h1>
+        <p>Home Automation Performance & Historical Data</p>
+    </div>
+
+    <!-- Time Range & Filter Controls -->
+    <div class="time-controls">
+        <div class="filter-section">
+            <div class="filter-group">
+                <span class="filter-label">
+                    <span class="iconify" data-icon="mdi:devices"></span>
+                    Device
+                </span>
+                <select class="filter-select" id="deviceFilter" onchange="applyFilters()">
+                    <option value="all">All Devices</option>
+                    <option value="climate">Climate Control</option>
+                    <option value="lighting">Lighting System</option>
+                    <option value="security">Security System</option>
+                    <option value="energy">Energy Monitor</option>
+                    <option value="water">Water System</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">
+                    <span class="iconify" data-icon="mdi:map-marker"></span>
+                    Location
+                </span>
+                <select class="filter-select" id="locationFilter" onchange="applyFilters()">
+                    <option value="all">All Locations</option>
+                    <option value="living">Living Room</option>
+                    <option value="bedroom">Bedroom</option>
+                    <option value="kitchen">Kitchen</option>
+                    <option value="bathroom">Bathroom</option>
+                    <option value="garage">Garage</option>
+                    <option value="kids">Kids Room</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">
+                    <span class="iconify" data-icon="mdi:sensor"></span>
+                    Sensor Type
+                </span>
+                <select class="filter-select" id="sensorFilter" onchange="applyFilters()">
+                    <option value="all">All Sensors</option>
+                    <option value="temperature">Temperature</option>
+                    <option value="humidity">Humidity</option>
+                    <option value="energy">Energy</option>
+                    <option value="motion">Motion</option>
+                    <option value="airquality">Air Quality</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <div class="time-range-buttons">
+                <button class="time-btn active" onclick="setTimeRange('hour')">Hour</button>
+                <button class="time-btn" onclick="setTimeRange('day')">Day</button>
+                <button class="time-btn" onclick="setTimeRange('week')">Week</button>
+                <button class="time-btn" onclick="setTimeRange('month')">Month</button>
+            </div>
+
+            <div class="date-picker">
+                <span class="iconify" data-icon="mdi:calendar"></span>
+                <input type="date" class="date-input" id="startDate" value="2026-02-10">
+                <span style="color:rgba(255,255,255,0.5);">—</span>
+                <input type="date" class="date-input" id="endDate" value="2026-02-12">
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+
+        <!-- Key Performance Indicators (KPIs) -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon uptime">
+                    <span class="iconify" data-icon="mdi:server"></span>
+                </div>
+                <div class="kpi-info">
+                    <div class="kpi-label">System Uptime</div>
+                    <div class="kpi-value" id="uptimeValue">99.98%</div>
+                    <div class="kpi-trend trend-up">
+                        <span class="iconify" data-icon="mdi:trending-up"></span>
+                        +0.02% vs yesterday
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon">
+                    <span class="iconify" data-icon="mdi:thermometer"></span>
+                </div>
+                <div class="kpi-info">
+                    <div class="kpi-label">Avg Temperature</div>
+                    <div class="kpi-value" id="avgTempValue">21.6°C</div>
+                    <div class="kpi-trend trend-neutral">
+                        <span class="iconify" data-icon="mdi:minus"></span>
+                        ±0.0°C
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon alerts">
+                    <span class="iconify" data-icon="mdi:bell-ring"></span>
+                </div>
+                <div class="kpi-info">
+                    <div class="kpi-label">Active Alerts</div>
+                    <div class="kpi-value" id="alertsValue">3</div>
+                    <div class="kpi-trend trend-down">
+                        <span class="iconify" data-icon="mdi:trending-down"></span>
+                        -2 from yesterday
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon efficiency">
+                    <span class="iconify" data-icon="mdi:leaf"></span>
+                </div>
+                <div class="kpi-info">
+                    <div class="kpi-label">Energy Efficiency</div>
+                    <div class="kpi-value" id="efficiencyValue">87%</div>
+                    <div class="kpi-trend trend-up">
+                        <span class="iconify" data-icon="mdi:trending-up"></span>
+                        +5% vs average
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon">
+                    <span class="iconify" data-icon="mdi:flash"></span>
+                </div>
+                <div class="kpi-info">
+                    <div class="kpi-label">Power Usage</div>
+                    <div class="kpi-value" id="powerValue">2.4 kWh</div>
+                    <div class="kpi-trend trend-down">
+                        <span class="iconify" data-icon="mdi:trending-down"></span>
+                        -0.3 kWh
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon">
+                    <span class="iconify" data-icon="mdi:water"></span>
+                </div>
+                <div class="kpi-info">
+                    <div class="kpi-label">Water Usage</div>
+                    <div class="kpi-value" id="waterValue">142 L</div>
+                    <div class="kpi-trend trend-up">
+                        <span class="iconify" data-icon="mdi:trending-up"></span>
+                        +12 L
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-Time Data Snapshot -->
+        <div class="snapshot-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="iconify" data-icon="mdi:flash-circle"></span>
+                    <h2>Real-Time Snapshot</h2>
+                </div>
+                <div class="timestamp">
+                    <span class="iconify" data-icon="mdi:clock-outline"></span>
+                    <span id="currentTimestamp">Last updated: Just now</span>
+                </div>
+            </div>
+
+            <div class="snapshot-grid" id="snapshotGrid">
+                <!-- Dynamically populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Historical Time-Series Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <span class="iconify" data-icon="mdi:chart-bell-curve-cumulative"></span>
+                        <h3>Temperature Trend</h3>
+                    </div>
+                    <div class="chart-meta">
+                        <div class="chart-legend">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #4da6ff;"></div>
+                                <span>Actual</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: rgba(77, 166, 255, 0.3);"></div>
+                                <span>Target</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="canvas-container">
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <span class="iconify" data-icon="mdi:lightning-bolt"></span>
+                        <h3>Energy Consumption</h3>
+                    </div>
+                    <div class="chart-meta">
+                        <div class="chart-legend">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #ffd84a;"></div>
+                                <span>Usage</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #4dff88;"></div>
+                                <span>Solar</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="canvas-container">
+                    <canvas id="energyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <span class="iconify" data-icon="mdi:water-percent"></span>
+                        <h3>Humidity Levels</h3>
+                    </div>
+                    <div class="chart-meta">
+                        <span style="color:rgba(255,255,255,0.6); font-size:0.8em;">Avg: 45%</span>
+                    </div>
+                </div>
+                <div class="canvas-container">
+                    <canvas id="humidityChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <span class="iconify" data-icon="mdi:security"></span>
+                        <h3>Security Events</h3>
+                    </div>
+                    <div class="chart-meta">
+                        <span style="color:rgba(255,255,255,0.6); font-size:0.8em;">Last 24h</span>
+                    </div>
+                </div>
+                <div class="canvas-container">
+                    <canvas id="securityChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts & Anomaly History -->
+        <div class="alerts-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="iconify" data-icon="mdi:alert-circle"></span>
+                    <h2>Alerts & Anomalies</h2>
+                </div>
+                <div class="alerts-tabs">
+                    <button class="alert-tab active" onclick="switchAlertTab('current')">Current (3)</button>
+                    <button class="alert-tab" onclick="switchAlertTab('history')">History (24)</button>
+                    <button class="alert-tab" onclick="switchAlertTab('resolved')">Resolved (18)</button>
+                </div>
+            </div>
+
+            <div class="alerts-list" id="alertsList">
+                <!-- Dynamically populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Insights & Comparative Analysis -->
+        <div class="insights-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="iconify" data-icon="mdi:brain"></span>
+                    <h2>Smart Insights</h2>
+                </div>
+                <span style="color:rgba(255,255,255,0.5); font-size:0.85em;">AI-Powered Analysis</span>
+            </div>
+
+            <div class="insights-grid">
+                <div class="insight-card">
+                    <div class="insight-header">
+                        <span class="iconify" data-icon="mdi:trending-up"></span>
+                        <h4>Energy Efficiency</h4>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">Today vs Yesterday</span>
+                        <div class="comparison-change trend-down">
+                            <span class="iconify" data-icon="mdi:arrow-down"></span>
+                            -12%
+                        </div>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">This Week vs Last Week</span>
+                        <div class="comparison-change trend-up">
+                            <span class="iconify" data-icon="mdi:arrow-up"></span>
+                            +8%
+                        </div>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">This Month vs Last Month</span>
+                        <div class="comparison-change trend-up">
+                            <span class="iconify" data-icon="mdi:arrow-up"></span>
+                            +15%
+                        </div>
+                    </div>
+                    <div class="insight-stat">
+                        <div class="stat-row">
+                            <span class="stat-label">Peak Usage Time</span>
+                            <span class="stat-value">18:00 - 21:00</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Optimal Efficiency</span>
+                            <span class="stat-value">09:00 - 11:00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="insight-card">
+                    <div class="insight-header">
+                        <span class="iconify" data-icon="mdi:thermostat"></span>
+                        <h4>Climate Analysis</h4>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">Living Room vs Bedroom</span>
+                        <span class="comparison-value">+2.3°C</span>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">Kitchen vs Average</span>
+                        <span class="comparison-value">+1.8°C</span>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">Optimal Set Point</span>
+                        <span class="comparison-value">21.5°C</span>
+                    </div>
+                    <div class="insight-stat">
+                        <div class="stat-row">
+                            <span class="stat-label">Humidity Variance</span>
+                            <span class="stat-value">±5%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Air Quality Index</span>
+                            <span class="stat-value">42 (Good)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="insight-card">
+                    <div class="insight-header">
+                        <span class="iconify" data-icon="mdi:security"></span>
+                        <h4>Security Patterns</h4>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">Motion Events</span>
+                        <span class="comparison-value">24/day</span>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">Door Openings</span>
+                        <span class="comparison-value">8/day</span>
+                    </div>
+                    <div class="comparison-row">
+                        <span class="comparison-label">False Alarms</span>
+                        <span class="comparison-value trend-down">-3 vs avg</span>
+                    </div>
+                    <div class="insight-stat">
+                        <div class="stat-row">
+                            <span class="stat-label">Most Active</span>
+                            <span class="stat-value">Front Door</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Least Active</span>
+                            <span class="stat-value">Garage</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FIXED BOTTOM NAVIGATION - ALWAYS VISIBLE -->
+    <div class="bottom-nav">
+        <button class="nav-btn home" onclick="window.location.href='home_dashboard.html'">
+            <span class="iconify" data-icon="mdi:home"></span>
+            Home
+        </button>
+        <button class="nav-btn rooms" onclick="window.location.href='rooms.html'">
+            <span class="iconify" data-icon="mdi:bed"></span>
+            Rooms
+        </button>
+        <button class="nav-btn analytics" onclick="window.location.href='home_analytics.html'">
+            <span class="iconify" data-icon="mdi:chart-line"></span>
+            Analytics
+        </button>
+    </div>
+
+    <script>
+        // ── Global Variables ───────────────────────────
+        let currentTimeRange = 'hour';
+        let currentAlertTab = 'current';
+        let charts = {};
+
+        // ── Toast Notification ─────────────────────────
+        let toastTimer;
+        function showToast(msg, icon = 'mdi:check-circle') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.querySelector('.iconify').setAttribute('data-icon', icon);
+            toast.classList.add('show');
+
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+
+        // ── Initialize Charts ──────────────────────────
+        function initCharts() {
+            // Temperature Chart
+            const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+            charts.temperature = new Chart(tempCtx, {
+                type: 'line',
+                data: {
+                    labels: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+                    datasets: [{
+                        label: 'Temperature (°C)',
+                        data: [19.2, 18.5, 18.8, 20.1, 22.4, 23.1, 22.8, 21.2],
+                        borderColor: '#4da6ff',
+                        backgroundColor: 'rgba(77, 166, 255, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#4da6ff',
+                        pointBorderColor: 'white',
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Target (°C)',
+                        data: [20.0, 20.0, 20.0, 21.0, 22.0, 22.0, 22.0, 21.0],
+                        borderColor: 'rgba(77, 166, 255, 0.3)',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        pointHoverRadius: 0,
+                        tension: 0.4,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: 'rgba(15, 40, 71, 0.95)' }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        }
+                    }
+                }
+            });
+
+            // Energy Chart
+            const energyCtx = document.getElementById('energyChart').getContext('2d');
+            charts.energy = new Chart(energyCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Usage (kWh)',
+                        data: [2.4, 2.2, 2.3, 2.5, 2.8, 3.1, 2.9],
+                        backgroundColor: 'rgba(255, 216, 74, 0.7)',
+                        borderColor: '#ffd84a',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }, {
+                        label: 'Solar (kWh)',
+                        data: [1.2, 1.1, 1.3, 1.4, 1.6, 1.8, 1.7],
+                        backgroundColor: 'rgba(77, 255, 136, 0.7)',
+                        borderColor: '#4dff88',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: 'rgba(15, 40, 71, 0.95)' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        }
+                    }
+                }
+            });
+
+            // Humidity Chart
+            const humidityCtx = document.getElementById('humidityChart').getContext('2d');
+            charts.humidity = new Chart(humidityCtx, {
+                type: 'line',
+                data: {
+                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                    datasets: [{
+                        label: 'Humidity (%)',
+                        data: [48, 52, 55, 43, 41, 45],
+                        borderColor: '#4dff88',
+                        backgroundColor: 'rgba(77, 255, 136, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#4dff88',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            max: 100,
+                            min: 0,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255,255,255,0.6)' }
+                        }
+                    }
+                }
+            });
+
+            // Security Chart
+            const securityCtx = document.getElementById('securityChart').getContext('2d');
+            charts.security = new Chart(securityCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Door', 'Motion', 'Window', 'Camera'],
+                    datasets: [{
+                        data: [8, 15, 3, 24],
+                        backgroundColor: [
+                            'rgba(255, 107, 107, 0.8)',
+                            'rgba(255, 184, 74, 0.8)',
+                            'rgba(77, 166, 255, 0.8)',
+                            'rgba(128, 255, 170, 0.8)'
+                        ],
+                        borderColor: 'rgba(255,255,255,0.2)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: 'rgba(255,255,255,0.8)', font: { size: 11 } }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        // ── Populate Real-Time Snapshot ───────────────
+        function populateSnapshot() {
+            const snapshotGrid = document.getElementById('snapshotGrid');
+            const devices = [
+                { name: 'Living Room Temp', icon: 'mdi:thermometer', value: '21.6', unit: '°C', status: 'online', location: 'Living Room', reading: 'Comfortable' },
+                { name: 'Kitchen Humidity', icon: 'mdi:water-percent', value: '48', unit: '%', status: 'online', location: 'Kitchen', reading: 'Normal' },
+                { name: 'Energy Monitor', icon: 'mdi:flash', value: '2.4', unit: 'kWh', status: 'online', location: 'Main Panel', reading: 'Today\'s usage' },
+                { name: 'Air Quality', icon: 'mdi:air-filter', value: '42', unit: 'AQI', status: 'online', location: 'Living Room', reading: 'Good' },
+                { name: 'Water Usage', icon: 'mdi:water', value: '142', unit: 'L', status: 'online', location: 'Main', reading: 'Daily total' },
+                { name: 'Motion Sensor', icon: 'mdi:motion-sensor', value: '24', unit: 'events', status: 'online', location: 'Entry', reading: 'Last 24h' }
+            ];
+
+            snapshotGrid.innerHTML = devices.map(device => `
+                <div class="snapshot-card">
+                    <div class="snapshot-icon">
+                        <span class="iconify" data-icon="${device.icon}"></span>
+                    </div>
+                    <div class="snapshot-details">
+                        <div class="snapshot-header">
+                            <span class="snapshot-name">${device.name}</span>
+                            <span class="device-status-badge status-${device.status}">${device.status}</span>
+                        </div>
+                        <div class="snapshot-reading">
+                            <span class="reading-value">${device.value}</span>
+                            <span class="reading-unit">${device.unit}</span>
+                        </div>
+                        <div class="reading-label">${device.location} • ${device.reading}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ── Populate Alerts List ──────────────────────
+        function populateAlerts(tab = 'current') {
+            const alertsList = document.getElementById('alertsList');
+
+            const alerts = {
+                current: [
+                    { severity: 'critical', title: 'High Temperature', device: 'Living Room', desc: 'Temperature exceeded 28°C', time: '2 min ago', location: 'Living Room', value: '29.3°C' },
+                    { severity: 'warning', title: 'Low Battery', device: 'Motion Sensor', desc: 'Battery level below 15%', time: '15 min ago', location: 'Garage', value: '12%' },
+                    { severity: 'info', title: 'Door Open', device: 'Front Door', desc: 'Door has been open for 5+ minutes', time: '25 min ago', location: 'Entry', value: '5m 23s' },
+                    { severity: 'warning', title: 'Unusual Activity', device: 'Security Camera', desc: 'Motion detected after hours', time: '1 hour ago', location: 'Backyard', value: '3 events' }
+                ],
+                history: [
+                    { severity: 'critical', title: 'Power Surge', device: 'Main Panel', desc: 'Voltage spike detected', time: '2 hours ago', location: 'Electrical', value: '248V' },
+                    { severity: 'critical', title: 'Water Leak', device: 'Kitchen Sensor', desc: 'Moisture detected under sink', time: '5 hours ago', location: 'Kitchen', value: '85% RH' },
+                    { severity: 'warning', title: 'High Humidity', device: 'Bathroom', desc: 'Humidity exceeded 70%', time: '8 hours ago', location: 'Bathroom', value: '74%' }
+                ],
+                resolved: [
+                    { severity: 'warning', title: 'Low Pressure', device: 'Water System', desc: 'Water pressure dropped', time: 'Yesterday', location: 'Main', value: '35 PSI' },
+                    { severity: 'info', title: 'Firmware Update', device: 'Smart Thermostat', desc: 'Update completed successfully', time: 'Yesterday', location: 'Living Room', value: 'v2.1.4' }
+                ]
+            };
+
+            alertsList.innerHTML = alerts[tab].map(alert => `
+                <div class="alert-item ${alert.severity}">
+                    <div class="alert-icon ${alert.severity}">
+                        <span class="iconify" data-icon="${alert.severity === 'critical' ? 'mdi:alert-circle' :
+                    alert.severity === 'warning' ? 'mdi:alert' : 'mdi:information'}"></span>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title">
+                            <span class="alert-name">${alert.title}</span>
+                            <span class="alert-time">${alert.time}</span>
+                        </div>
+                        <div class="alert-desc">${alert.device} • ${alert.desc}</div>
+                        <div class="alert-meta">
+                            <span>📍 ${alert.location}</span>
+                            <span>📊 ${alert.value}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ── Update Timestamp ──────────────────────────
+        function updateTimestamp() {
+            const now = new Date();
+            const formatted = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('currentTimestamp').textContent = `Last updated: ${formatted}`;
+        }
+
+        // ── Filter Controls ───────────────────────────
+        function applyFilters() {
+            const device = document.getElementById('deviceFilter').value;
+            const location = document.getElementById('locationFilter').value;
+            const sensor = document.getElementById('sensorFilter').value;
+            showToast(`Filters applied: ${device}, ${location}, ${sensor}`, 'mdi:filter');
+        }
+
+        function setTimeRange(range) {
+            currentTimeRange = range;
+            document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            let tempData, labels;
+            switch (range) {
+                case 'hour':
+                    labels = ['00:00', '00:15', '00:30', '00:45', '01:00', '01:15', '01:30', '01:45'];
+                    tempData = [19.2, 19.1, 18.9, 18.8, 18.8, 19.0, 19.1, 19.3];
+                    break;
+                case 'day':
+                    labels = ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'];
+                    tempData = [19.2, 18.5, 18.8, 20.1, 22.4, 23.1, 22.8, 21.2];
+                    break;
+                case 'week':
+                    labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    tempData = [19.8, 20.1, 20.3, 21.0, 21.5, 22.1, 21.4];
+                    break;
+                case 'month':
+                    labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                    tempData = [20.2, 20.8, 21.1, 21.4];
+                    break;
+            }
+
+            if (charts.temperature) {
+                charts.temperature.data.labels = labels;
+                charts.temperature.data.datasets[0].data = tempData;
+                charts.temperature.update();
+            }
+            showToast(`Showing ${range} view`, 'mdi:calendar');
+        }
+
+        function switchAlertTab(tab) {
+            currentAlertTab = tab;
+            document.querySelectorAll('.alert-tab').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            populateAlerts(tab);
+        }
+
+        // ── Initialize Everything ─────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            populateSnapshot();
+            populateAlerts('current');
+            updateTimestamp();
+            setInterval(updateTimestamp, 1000);
+
+            setInterval(() => {
+                if (charts.temperature) {
+                    const lastValue = charts.temperature.data.datasets[0].data.slice(-1)[0];
+                    const newValue = Math.max(18, Math.min(26, lastValue + (Math.random() - 0.5) * 0.3));
+                    charts.temperature.data.datasets[0].data.push(newValue);
+                    charts.temperature.data.datasets[0].data.shift();
+                    charts.temperature.update();
+                }
+            }, 5000);
+
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            document.getElementById('startDate').value = yesterday.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+
+            showToast('Analytics Dashboard Ready', 'mdi:chart-line');
+        });
+    </script>
+</body>
+
+</html>
